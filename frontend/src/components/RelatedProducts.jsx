@@ -117,9 +117,11 @@ const RelatedProducts = ({ currentProductId, category }) => {
                       ({product.reviewsCount})
                     </span>
                   </div>
-                  <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                    ${product.price.toFixed(2)}
-                  </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                      Rs. {Math.round(product.price).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}

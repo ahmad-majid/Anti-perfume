@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Mail, ArrowRight } from 'lucide-react';
 
 const Footer = () => {
@@ -94,8 +95,8 @@ const Footer = () => {
         <div style={{ borderTop: '1px solid rgba(106, 91, 83, 0.08)', paddingTop: '30px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
           <p>© {new Date().getFullYear()} Anti. All rights reserved.</p>
           <div style={{ display: 'flex', gap: '24px' }}>
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms & Conditions</a>
+            <Link to="/privacy">Privacy Policy</Link>
+            <Link to="/terms">Terms & Conditions</Link>
           </div>
         </div>
       </div>

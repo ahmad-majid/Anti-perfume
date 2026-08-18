@@ -84,14 +84,15 @@ const CartDrawer = ({ isOpen, onClose }) => {
                       <span style={{ margin: '0 10px', fontSize: '0.85rem', fontWeight: '500' }}>{item.quantity}</span>
                       <button
                         onClick={() => updateQuantity(item._id, item.size, item.quantity + 1)}
-                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px', opacity: item.quantity >= item.stock ? 0.3 : 1, pointerEvents: item.quantity >= item.stock ? 'none' : 'auto' }}
+                        disabled={item.quantity >= item.stock}
                       >
                         <Plus size={12} />
                       </button>
                     </div>
                     {/* Price */}
                     <span style={{ fontWeight: '600', color: 'var(--color-burgundy)', fontSize: '0.95rem' }}>
-                      ${(item.price * item.quantity).toFixed(2)}
+                      Rs. {Number(item.price * item.quantity).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -123,25 +124,25 @@ const CartDrawer = ({ isOpen, onClose }) => {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
               <span>Subtotal</span>
-              <span style={{ fontWeight: '500' }}>${cartSubtotal.toFixed(2)}</span>
+              <span style={{ fontWeight: '600' }}>Rs. {Number(cartSubtotal).toLocaleString()}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
               <span>Shipping</span>
-              <span style={{ fontWeight: '500' }}>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
+              <span style={{ fontWeight: '600', color: 'var(--color-success)' }}>{shippingCost === 0 ? 'FREE across Pakistan' : `Rs. ${Number(shippingCost).toLocaleString()}`}</span>
             </div>
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 fontSize: '1.15rem',
-                fontWeight: '600',
+                fontWeight: '700',
                 color: 'var(--color-burgundy)',
                 paddingTop: '10px',
                 borderTop: '1px solid rgba(106, 91, 83, 0.08)',
               }}
             >
               <span>Total</span>
-              <span>${cartTotal.toFixed(2)}</span>
+              <span>Rs. {Number(cartTotal).toLocaleString()}</span>
             </div>
             <button
               className="btn btn-primary"

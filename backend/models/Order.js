@@ -20,46 +20,82 @@ const orderSchema = new mongoose.Schema({
       imageUrl: { type: String, required: true },
     },
   ],
+  contactInfo: {
+    emailOrPhone: { type: String, default: '' },
+    emailDiscounts: { type: Boolean, default: true },
+  },
   shippingAddress: {
+    firstName: { type: String, default: '' },
+    lastName: { type: String, default: '' },
     address: { type: String, required: true },
+    apartment: { type: String, default: '' },
     city: { type: String, required: true },
-    state: { type: String, required: true },
-    postalCode: { type: String, required: true },
-    country: { type: String, required: true },
+    state: { type: String, default: '' },
+    postalCode: { type: String, default: '' },
+    country: { type: String, default: 'Pakistan' },
+    phone: { type: String, default: '' },
+  },
+  billingAddress: {
+    sameAsShipping: { type: Boolean, default: true },
+    address: { type: String, default: '' },
+    city: { type: String, default: '' },
+    state: { type: String, default: '' },
+    postalCode: { type: String, default: '' },
+    country: { type: String, default: 'Pakistan' },
   },
   paymentMethod: {
     type: String,
     required: true,
-    default: 'Stripe',
+    enum: ['Cash on Delivery (COD)', 'Bank Transfer', 'Stripe'],
+    default: 'Cash on Delivery (COD)',
   },
-  stripePaymentIntentId: {
+  paymentProof: {
+    screenshotUrl: { type: String, default: '' },
+    transactionId: { type: String, default: '' },
+    note: { type: String, default: '' },
+  },
+  paymentStatus: {
     type: String,
-    required: true,
+    enum: ['Pending Verification', 'Approved', 'Rejected'],
+    default: 'Pending Verification',
+  },
+  subtotal: {
+    type: Number,
+    default: 0,
+  },
+  discountAmount: {
+    type: Number,
+    default: 0,
+  },
+  bankDiscountAmount: {
+    type: Number,
+    default: 0,
+  },
+  shippingCost: {
+    type: Number,
+    default: 0,
   },
   totalAmount: {
     type: Number,
     required: true,
     default: 0.0,
   },
-  isPaid: {
-    type: Boolean,
-    required: true,
-    default: false,
-  },
-  paidAt: {
-    type: Date,
+  couponCode: {
+    type: String,
+    default: null,
   },
   status: {
     type: String,
     required: true,
-    enum: ['Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'],
-    default: 'Processing',
+    enum: ['Pending Confirmation', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'],
+    default: 'Pending Confirmation',
   },
   statusHistory: [
     {
       status: { type: String, required: true },
-      timestamp: { type: Date, default: Date.now }
-    }
+      timestamp: { type: Date, default: Date.now },
+      note: { type: String, default: '' },
+    },
   ],
   createdAt: {
     type: Date,

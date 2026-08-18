@@ -25,7 +25,10 @@ export const CartProvider = ({ children }) => {
     let updatedCart = [...cartItems];
 
     if (existingIndex > -1) {
-      updatedCart[existingIndex].quantity += quantity;
+      updatedCart[existingIndex].quantity = Math.min(
+        updatedCart[existingIndex].stock,
+        updatedCart[existingIndex].quantity + quantity
+      );
     } else {
       updatedCart.push({
         _id: product._id,
@@ -33,7 +36,8 @@ export const CartProvider = ({ children }) => {
         price: product.price,
         imageUrl: product.imageUrl,
         size: size,
-        quantity: quantity,
+        quantity: Math.min(product.stock, quantity),
+        stock: product.stock,
       });
     }
 
@@ -55,7 +59,7 @@ export const CartProvider = ({ children }) => {
 
     const updatedCart = cartItems.map((item) =>
       item._id === productId && item.size === size
-        ? { ...item, quantity }
+        ? { ...item, quantity: Math.min(item.stock, quantity) }
         : item
     );
     saveCart(updatedCart);

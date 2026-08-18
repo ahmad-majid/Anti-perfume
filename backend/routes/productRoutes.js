@@ -10,11 +10,11 @@ router.get('/search/autocomplete', async (req, res) => {
   try {
     const { q } = req.query;
     if (!q) return res.json([]);
-    
+
     const products = await Product.find(
       { name: { $regex: q, $options: 'i' } }
-    ).select('_id name imageUrl price category').limit(6);
-    
+    ).select('_id name imageUrl hoverImageUrl price category originalPrice').limit(6);
+
     res.json(products);
   } catch (error) {
     console.error('Autocomplete Error:', error);
@@ -22,17 +22,23 @@ router.get('/search/autocomplete', async (req, res) => {
   }
 });
 
-// @desc    Get all products
+// @desc    Get all products (supports category, saleId, search, and sort filters)
 // @route   GET /api/products
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    const { category, search, sort } = req.query;
+    const { category, saleId, search, sort } = req.query;
     let query = {};
 
-    // Filter by category
-    if (category && category !== 'All') {
-      query.category = category;
+    // Filter by category (case-insensitive trimmed match)
+    if (category && category !== 'All' && category !== 'undefined') {
+      const cleanCat = category.trim();
+      query.category = { $regex: new RegExp(`^${cleanCat}$`, 'i') };
+    }
+
+    // Filter by saleId
+    if (saleId && saleId !== 'All' && saleId !== 'undefined') {
+      query.saleId = saleId;
     }
 
     // Search by name or description
@@ -43,7 +49,7 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    let productsQuery = Product.find(query);
+    let productsQuery = Product.find(query).populate('saleId', 'name slug badgeText discountPercent isActive');
 
     // Sorting
     if (sort) {
@@ -73,7 +79,7 @@ router.get('/', async (req, res) => {
 // @access  Public
 router.get('/:id', async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findById(req.params.id).populate('saleId', 'name slug badgeText discountPercent isActive');
 
     if (product) {
       res.json(product);
@@ -90,15 +96,18 @@ router.get('/:id', async (req, res) => {
 // @route   POST /api/products
 // @access  Private/Admin
 router.post('/', protect, adminOnly, async (req, res) => {
-  const { name, description, price, imageUrl, category, stock, notes, sizes, featured } = req.body;
+  const { name, description, price, originalPrice, imageUrl, hoverImageUrl, category, saleId, stock, notes, sizes, featured } = req.body;
 
   try {
     const product = new Product({
       name,
       description,
       price,
+      originalPrice: originalPrice || null,
       imageUrl,
+      hoverImageUrl: hoverImageUrl || imageUrl,
       category,
+      saleId: saleId || null,
       stock,
       notes,
       sizes,
@@ -106,7 +115,8 @@ router.post('/', protect, adminOnly, async (req, res) => {
     });
 
     const createdProduct = await product.save();
-    res.status(201).json(createdProduct);
+    const populated = await Product.findById(createdProduct._id).populate('saleId', 'name slug badgeText');
+    res.status(201).json(populated);
   } catch (error) {
     console.error('Create Product Error:', error);
     res.status(400).json({ message: error.message });
@@ -117,7 +127,7 @@ router.post('/', protect, adminOnly, async (req, res) => {
 // @route   PUT /api/products/:id
 // @access  Private/Admin
 router.put('/:id', protect, adminOnly, async (req, res) => {
-  const { name, description, price, imageUrl, category, stock, notes, sizes, featured } = req.body;
+  const { name, description, price, originalPrice, imageUrl, hoverImageUrl, category, saleId, stock, notes, sizes, featured } = req.body;
 
   try {
     const product = await Product.findById(req.params.id);
@@ -126,21 +136,69 @@ router.put('/:id', protect, adminOnly, async (req, res) => {
       product.name = name || product.name;
       product.description = description || product.description;
       product.price = price !== undefined ? price : product.price;
+      product.originalPrice = originalPrice !== undefined ? originalPrice : product.originalPrice;
       product.imageUrl = imageUrl || product.imageUrl;
+      product.hoverImageUrl = hoverImageUrl !== undefined ? hoverImageUrl : product.hoverImageUrl;
       product.category = category || product.category;
+      product.saleId = saleId !== undefined ? (saleId || null) : product.saleId;
       product.stock = stock !== undefined ? stock : product.stock;
       product.notes = notes || product.notes;
       product.sizes = sizes || product.sizes;
       product.featured = featured !== undefined ? featured : product.featured;
 
       const updatedProduct = await product.save();
-      res.json(updatedProduct);
+      const populated = await Product.findById(updatedProduct._id).populate('saleId', 'name slug badgeText');
+      res.json(populated);
     } else {
       res.status(404).json({ message: 'Product not found' });
     }
   } catch (error) {
     console.error('Update Product Error:', error);
     res.status(400).json({ message: error.message });
+  }
+});
+
+// @desc    Submit a review for a product
+// @route   POST /api/products/:id/reviews
+// @access  Public
+router.post('/:id/reviews', async (req, res) => {
+  const { name, rating, comment, variant } = req.body;
+
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Please provide a valid rating between 1 and 5 stars' });
+    }
+
+    if (!name || !comment) {
+      return res.status(400).json({ message: 'Please provide your name and review comment' });
+    }
+
+    const review = {
+      name: name.trim(),
+      rating: Number(rating),
+      comment: comment.trim(),
+      variant: variant || '100ml',
+      isVerified: true,
+      createdAt: new Date(),
+    };
+
+    product.reviews.unshift(review);
+    product.reviewsCount = product.reviews.length;
+    product.rating = Number(
+      (product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length).toFixed(1)
+    );
+
+    await product.save();
+    res.status(201).json({ message: 'Review submitted successfully', product });
+  } catch (error) {
+    console.error('Submit Review Error:', error);
+    res.status(500).json({ message: 'Server error submitting review' });
   }
 });
 

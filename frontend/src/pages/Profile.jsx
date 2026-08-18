@@ -90,7 +90,7 @@ const Profile = () => {
                   </div>
                   <div>
                     <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Total Amount</span>
-                    <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-burgundy)' }}>${order.totalAmount.toFixed(2)}</p>
+                    <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-burgundy)' }}>Rs. {Math.round(order.totalAmount).toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -118,7 +118,7 @@ const Profile = () => {
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 600 }}>{item.name}</h4>
                       <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Qty: {item.quantity} · Size: {item.size}</span>
                     </div>
-                    <span style={{ fontWeight: 500 }}>${(item.price * item.quantity).toFixed(2)}</span>
+                    <span style={{ fontWeight: 500 }}>Rs. {(item.price * item.quantity).toLocaleString()}</span>
                   </div>
                 ))}
               </div>

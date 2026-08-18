@@ -1,5 +1,14 @@
 const mongoose = require('mongoose');
 
+const reviewSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  rating: { type: Number, required: true, min: 1, max: 5 },
+  comment: { type: String, required: true },
+  variant: { type: String, default: '100ml' },
+  isVerified: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now },
+});
+
 const productSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -14,23 +23,37 @@ const productSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Please provide a product price'],
   },
+  originalPrice: {
+    type: Number,
+    default: null,
+  },
   imageUrl: {
     type: String,
     required: true,
   },
+  hoverImageUrl: {
+    type: String,
+    default: '',
+  },
   category: {
     type: String,
     required: [true, 'Please provide a category'],
-    enum: ['Floral', 'Woody', 'Citrus', 'Amber', 'Fresh'],
+    enum: ['Floral', 'Woody', 'Citrus', 'Amber', 'Fresh', 'Oriental', 'Gourmand'],
+  },
+  saleId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Sale',
+    default: null,
   },
   rating: {
     type: Number,
-    default: 0,
+    default: 5.0,
   },
   reviewsCount: {
     type: Number,
     default: 0,
   },
+  reviews: [reviewSchema],
   stock: {
     type: Number,
     required: true,

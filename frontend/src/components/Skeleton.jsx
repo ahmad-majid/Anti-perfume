@@ -2,11 +2,6 @@ import React from 'react';
 
 /**
  * Skeleton — shimmer loading placeholder.
- *
- * Usage:
- *   <Skeleton width="100%" height={200} borderRadius={16} />
- *   <Skeleton variant="text" lines={3} />
- *   <Skeleton variant="card" count={4} />
  */
 
 const shimmerStyle = {
@@ -72,6 +67,8 @@ const SkeletonCardGrid = ({ count = 4 }) => (
   </div>
 );
 
+const SkeletonGrid = SkeletonCardGrid;
+
 // Order row variant
 const SkeletonOrderRow = () => (
   <div
@@ -109,4 +106,4 @@ const Skeleton = ({ variant = 'block', count, lines, width, height, borderRadius
 };
 
 export default Skeleton;
-export { SkeletonBlock, SkeletonText, SkeletonCard, SkeletonCardGrid, SkeletonOrderRow };
+export { SkeletonBlock, SkeletonText, SkeletonCard, SkeletonCardGrid, SkeletonGrid, SkeletonOrderRow };

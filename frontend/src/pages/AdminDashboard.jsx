@@ -1,18 +1,16 @@
-﻿import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BarChart2, Package, ShoppingBag, Star, Tag, Users,
-  DollarSign, CheckCircle, XCircle, Trash2, Edit2, Plus, X,
-  ChevronRight, Mail, Calendar, Sparkles, Settings,
+  Package, ShoppingBag, Star, Trash2, Edit2, Plus, X,
+  ChevronRight, Settings, Flame, Video, Image, Upload,
+  CheckCircle, XCircle, Clock, Building, ExternalLink, RefreshCw
 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { SkeletonBlock } from '../components/Skeleton';
-import OrderTimeline from '../components/OrderTimeline';
 
-const API = 'http://localhost:5000/api';
+const API = '/api';
 
-// ─── Simple fetch helper (no hooks magic, just plain async) ─────────────────
 async function apiFetch(url, token, options = {}) {
   const res = await fetch(url, {
     ...options,
@@ -27,51 +25,115 @@ async function apiFetch(url, token, options = {}) {
   return data;
 }
 
-// ─── Generic data-loading hook (stable, no infinite loops) ──────────────────
 function useData(url, token) {
-  const [data, setData]       = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
-  const [tick, setTick]       = useState(0);          // bump to refetch
+  const [error, setError] = useState(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     if (!url || !token) return;
     let cancelled = false;
     setLoading(true);
     apiFetch(url, token)
-      .then(d  => { if (!cancelled) { setData(d); setLoading(false); } })
-      .catch(e => { if (!cancelled) { setError(e.message); setLoading(false); } });
+      .then((d) => { if (!cancelled) { setData(d); setLoading(false); } })
+      .catch((e) => { if (!cancelled) { setError(e.message); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [url, token, tick]);                              // tick is the only "re-run" trigger
+  }, [url, token, tick]);
 
-  const refetch = () => setTick(t => t + 1);
+  const refetch = () => setTick((t) => t + 1);
   return { data, loading, error, refetch };
 }
 
-// ─── Shared widgets ───────────────────────────────────────────────────────
-const StatCard = ({ icon: Icon, label, value, color = 'var(--color-burgundy)' }) => (
-  <div className="glass-panel" style={{ padding: 24, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 18 }}>
-    <div style={{ width: 52, height: 52, borderRadius: 14, background: `${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <Icon size={22} color={color} />
-    </div>
-    <div>
-      <p style={{ fontSize: '0.76rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 4 }}>{label}</p>
-      <p style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>{value ?? '—'}</p>
-    </div>
-  </div>
-);
+// ─── File Upload Helper ──────────────────────────────────────────────────────
+const FileUploadField = ({ label, currentUrl, onUploaded, accept = 'image/*' }) => {
+  const [uploading, setUploading] = useState(false);
+  const [manualUrl, setManualUrl] = useState(currentUrl || '');
+  const { toast } = useToast();
 
+  useEffect(() => {
+    setManualUrl(currentUrl || '');
+  }, [currentUrl]);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch(`${API}/upload`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setManualUrl(data.url);
+        onUploaded(data.url);
+        toast.success('File uploaded successfully.');
+      } else {
+        toast.error(data.message || 'Upload failed.');
+      }
+    } catch {
+      toast.error('File upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="form-group" style={{ marginBottom: 0 }}>
+      <label className="form-label">{label}</label>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="Paste image/video URL or click Upload"
+          value={manualUrl}
+          onChange={(e) => {
+            setManualUrl(e.target.value);
+            onUploaded(e.target.value);
+          }}
+          style={{ flex: 1 }}
+        />
+        <label
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '10px 16px', borderRadius: 8,
+            background: 'var(--bg-secondary)',
+            border: '1px solid rgba(106,91,83,0.2)',
+            cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600,
+            color: 'var(--color-burgundy)', whiteSpace: 'nowrap',
+          }}
+        >
+          <Upload size={14} /> {uploading ? 'Uploading...' : 'Upload'}
+          <input type="file" accept={accept} onChange={handleFileChange} style={{ display: 'none' }} />
+        </label>
+      </div>
+      {manualUrl && (
+        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img src={manualUrl} alt="Preview" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} onError={(e) => (e.target.style.display = 'none')} />
+          <span style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>{manualUrl}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Shared UI Helpers ───────────────────────────────────────────────────────
 const StatusBadge = ({ status }) => {
   const map = {
-    Processing:         { bg: 'rgba(197,160,89,0.15)',  color: '#A07828' },
-    Shipped:            { bg: 'rgba(89,53,48,0.1)',     color: 'var(--color-burgundy)' },
-    'Out for Delivery': { bg: 'rgba(166,110,99,0.15)',  color: 'var(--color-rose-dark)' },
-    Delivered:          { bg: 'rgba(110,138,115,0.15)', color: 'var(--color-success)' },
-    Cancelled:          { bg: 'rgba(176,92,92,0.15)',   color: 'var(--color-error)' },
+    'Pending Confirmation': { bg: 'rgba(197,160,89,0.15)', color: '#A07828' },
+    'Pending Verification': { bg: 'rgba(197,160,89,0.25)', color: '#A07828' },
+    Approved:              { bg: 'rgba(110,138,115,0.2)', color: 'var(--color-success)' },
+    Confirmed:             { bg: 'rgba(110,138,115,0.2)', color: 'var(--color-success)' },
+    Processing:            { bg: 'rgba(89,53,48,0.12)', color: 'var(--color-burgundy)' },
+    Shipped:               { bg: 'rgba(89,53,48,0.12)', color: 'var(--color-burgundy)' },
+    'Out for Delivery':    { bg: 'rgba(166,110,99,0.2)', color: 'var(--color-rose-dark)' },
+    Delivered:             { bg: 'rgba(110,138,115,0.2)', color: 'var(--color-success)' },
+    Cancelled:             { bg: 'rgba(176,92,92,0.2)', color: 'var(--color-error)' },
+    Rejected:              { bg: 'rgba(176,92,92,0.2)', color: 'var(--color-error)' },
   };
   const s = map[status] || { bg: 'rgba(0,0,0,0.06)', color: 'var(--color-text-muted)' };
   return (
-    <span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 20, fontSize: '0.76rem', fontWeight: 600, background: s.bg, color: s.color, whiteSpace: 'nowrap' }}>
+    <span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 20, fontSize: '0.76rem', fontWeight: 700, background: s.bg, color: s.color, whiteSpace: 'nowrap' }}>
       {status}
     </span>
   );
@@ -82,105 +144,209 @@ const TH = ({ children }) => (
     {children}
   </th>
 );
-const TD = ({ children, style }) => (
-  <td style={{ padding: '12px 16px', ...style }}>{children}</td>
-);
+const TD = ({ children, style }) => <td style={{ padding: '12px 16px', ...style }}>{children}</td>;
 
-// ─── Order detail modal ──────────────────────────────────────────────────
+// ─── Order Inspection & Payment Verification Modal ───────────────────────────
 const OrderModal = ({ order, token, onClose, onSaved }) => {
   const { toast } = useToast();
   const [status, setStatus] = useState(order.status);
+  const [paymentStatus, setPaymentStatus] = useState(order.paymentStatus || 'Pending Verification');
   const [saving, setSaving] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
-  const save = async () => {
+  const handleUpdatePaymentStatus = async (newPayStatus) => {
+    setProcessingPayment(true);
+    try {
+      await apiFetch(`${API}/orders/${order._id}/payment-status`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ paymentStatus: newPayStatus }),
+      });
+      setPaymentStatus(newPayStatus);
+      if (newPayStatus === 'Approved') {
+        setStatus('Confirmed');
+        toast.success(`Payment verified & marked as Approved! Order Confirmed.`);
+      } else if (newPayStatus === 'Rejected') {
+        setStatus('Cancelled');
+        toast.error(`Payment marked as Rejected. Order Cancelled.`);
+      } else {
+        toast.info(`Payment status updated to ${newPayStatus}.`);
+      }
+      onSaved();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
+  const saveOrderStatus = async () => {
     setSaving(true);
     try {
       await apiFetch(`${API}/orders/${order._id}/status`, token, {
-        method: 'PUT', body: JSON.stringify({ status }),
+        method: 'PUT',
+        body: JSON.stringify({ status }),
       });
-      toast.success('Order status updated.');
+      toast.success('Order lifecycle status updated.');
       onSaved();
       onClose();
     } catch (e) {
       toast.error(e.message);
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,34,30,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={onClose}>
-      <div style={{ background: 'var(--bg-primary)', borderRadius: 20, width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
-
-        {/* header */}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,34,30,0.65)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={onClose}>
+      <div style={{ background: 'var(--bg-primary)', borderRadius: 20, width: '100%', maxWidth: 720, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 28px', borderBottom: '1px solid rgba(106,91,83,0.1)' }}>
           <div>
-            <p style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Order Details</p>
-            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.3rem', color: 'var(--color-burgundy)', marginTop: 2 }}>#{order._id.slice(-10)}</h3>
+            <p style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Admin Order & Payment Verification</p>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.35rem', color: 'var(--color-burgundy)', marginTop: 2 }}>Order #{order._id.slice(-8)}</h3>
           </div>
-          <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 4 }}><X size={20} /></button>
+          <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 4 }}><X size={22} /></button>
         </div>
 
-        <div style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 22 }}>
-
-          {/* customer */}
-          <div className="glass-panel" style={{ padding: '14px 20px', borderRadius: 12 }}>
-            <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 6 }}>Customer</p>
-            <p style={{ fontWeight: 600 }}>{order.user?.username || '—'}</p>
-            <p style={{ fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>{order.user?.email}</p>
+        <div style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Customer & Payment Info */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="glass-panel" style={{ padding: '14px 18px', borderRadius: 12 }}>
+              <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, marginBottom: 4 }}>Customer Details</p>
+              <p style={{ fontWeight: 600 }}>{order.shippingAddress?.firstName} {order.shippingAddress?.lastName || order.user?.username}</p>
+              <p style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>{order.contactInfo?.emailOrPhone || order.user?.email}</p>
+              <p style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>📞 {order.shippingAddress?.phone || '—'}</p>
+            </div>
+            <div className="glass-panel" style={{ padding: '14px 18px', borderRadius: 12 }}>
+              <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, marginBottom: 4 }}>Payment Method</p>
+              <p style={{ fontWeight: 700, color: 'var(--color-burgundy)', fontSize: '1.05rem' }}>{order.paymentMethod}</p>
+              <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Status:</span>
+                <StatusBadge status={paymentStatus} />
+              </div>
+            </div>
           </div>
 
-          {/* timeline */}
-          <div>
-            <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 12 }}>Progress</p>
-            <OrderTimeline status={order.status} statusHistory={order.statusHistory} />
+          {/* Dedicated Payment Verification Section */}
+          <div style={{ background: 'rgba(197,160,89,0.08)', padding: 20, borderRadius: 16, border: '1.5px solid rgba(197,160,89,0.35)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-burgundy)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Building size={18} /> Admin Payment Verification Control
+              </h4>
+              <StatusBadge status={paymentStatus} />
+            </div>
+
+            {/* Quick Status Selector Buttons */}
+            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: 8, fontWeight: 600 }}>Select Payment Verification Status:</p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+              {[
+                { key: 'Approved', label: '✓ Approved (Payment Verified)', color: 'var(--color-success)', bg: 'rgba(110,138,115,0.15)' },
+                { key: 'Pending Verification', label: '⏳ Pending Verification', color: '#A07828', bg: 'rgba(197,160,89,0.15)' },
+                { key: 'Rejected', label: '✕ Rejected (Declined)', color: 'var(--color-error)', bg: 'rgba(176,92,92,0.15)' },
+              ].map((ps) => (
+                <button
+                  key={ps.key}
+                  disabled={processingPayment}
+                  onClick={() => handleUpdatePaymentStatus(ps.key)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 20,
+                    border: paymentStatus === ps.key ? `2px solid ${ps.color}` : '1px solid rgba(106,91,83,0.2)',
+                    background: paymentStatus === ps.key ? ps.bg : 'white',
+                    color: ps.color,
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    boxShadow: paymentStatus === ps.key ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {ps.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Transaction ID & Screenshot Details */}
+            {order.paymentProof?.transactionId && (
+              <div style={{ background: 'white', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.08)', marginBottom: 12 }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Transaction ID / Ref: </span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--color-burgundy)', fontSize: '0.92rem' }}>{order.paymentProof.transactionId}</span>
+              </div>
+            )}
+
+            {order.paymentProof?.screenshotUrl ? (
+              <div style={{ background: 'white', padding: 14, borderRadius: 10, border: '1px solid rgba(0,0,0,0.08)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Payment Receipt Screenshot:</span>
+                  <a href={order.paymentProof.screenshotUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.78rem', color: 'var(--color-burgundy)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    Open Full Image <ExternalLink size={12} />
+                  </a>
+                </div>
+                <a href={order.paymentProof.screenshotUrl} target="_blank" rel="noreferrer">
+                  <img src={order.paymentProof.screenshotUrl} alt="Bank Receipt" style={{ width: '100%', maxHeight: 240, borderRadius: 8, objectFit: 'contain', background: '#F9F6F0', border: '1px solid rgba(0,0,0,0.08)' }} />
+                </a>
+              </div>
+            ) : order.paymentMethod === 'Bank Transfer' ? (
+              <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', fontStyle: 'italic', background: 'white', padding: '10px 14px', borderRadius: 8 }}>
+                No screenshot uploaded. Customer may have shared proof directly on WhatsApp (0314-1774008).
+              </p>
+            ) : null}
           </div>
 
-          {/* status buttons */}
+          {/* Order Lifecycle Status */}
           <div>
-            <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 10 }}>Update Status</p>
+            <p style={{ fontSize: '0.74rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, marginBottom: 10 }}>Order Lifecycle Status</p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {['Processing','Shipped','Out for Delivery','Delivered','Cancelled'].map(s => (
-                <button key={s} onClick={() => setStatus(s)} style={{ padding: '8px 16px', borderRadius: 20, border: status === s ? 'none' : '1px solid rgba(106,91,83,0.2)', background: status === s ? 'var(--color-burgundy)' : 'transparent', color: status === s ? 'white' : 'var(--color-text-primary)', fontSize: '0.82rem', fontWeight: 500, cursor: 'pointer', transition: 'var(--transition-fast)' }}>
+              {['Pending Confirmation', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatus(s)}
+                  style={{
+                    padding: '8px 16px', borderRadius: 20,
+                    border: status === s ? 'none' : '1px solid rgba(106,91,83,0.2)',
+                    background: status === s ? 'var(--color-burgundy)' : 'transparent',
+                    color: status === s ? 'white' : 'var(--color-text-primary)',
+                    fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
                   {s}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* items */}
+          {/* Order Items list */}
           <div>
-            <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 12 }}>Items</p>
+            <p style={{ fontSize: '0.74rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, marginBottom: 10 }}>Order Items</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {order.orderItems.map((item, i) => (
+              {order.orderItems?.map((item, i) => (
                 <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <div style={{ width: 46, height: 46, borderRadius: 8, overflow: 'hidden', background: 'var(--bg-secondary)', flexShrink: 0 }}>
-                    <img src={item.imageUrl} alt={item.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div style={{ width: 44, height: 44, borderRadius: 8, overflow: 'hidden', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+                    <img src={item.imageUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                   <div style={{ flexGrow: 1 }}>
-                    <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{item.name}</p>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{item.size} × {item.quantity}</p>
+                    <p style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.name}</p>
+                    <p style={{ fontSize: '0.76rem', color: 'var(--color-text-muted)' }}>{item.size || '100ml'} × {item.quantity}</p>
                   </div>
-                  <span style={{ fontWeight: 600, color: 'var(--color-burgundy)' }}>${(item.price * item.quantity).toFixed(2)}</span>
+                  <span style={{ fontWeight: 600, color: 'var(--color-burgundy)' }}>Rs. {Math.round(item.price * item.quantity).toLocaleString()}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* shipping */}
-          <div className="glass-panel" style={{ padding: '14px 20px', borderRadius: 12 }}>
-            <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 6 }}>Ship To</p>
-            <p style={{ fontSize: '0.88rem', color: 'var(--color-text-secondary)' }}>
-              {order.shippingAddress?.address}, {order.shippingAddress?.city}, {order.shippingAddress?.state} {order.shippingAddress?.postalCode}, {order.shippingAddress?.country}
+          <div className="glass-panel" style={{ padding: '12px 18px', borderRadius: 12 }}>
+            <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, marginBottom: 4 }}>Delivery Destination</p>
+            <p style={{ fontSize: '0.86rem', color: 'var(--color-text-secondary)' }}>
+              {order.shippingAddress?.address}, {order.shippingAddress?.city}, {order.shippingAddress?.country}
             </p>
           </div>
 
-          {/* total */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4, borderTop: '1px solid rgba(106,91,83,0.1)' }}>
-            <span style={{ fontWeight: 600 }}>Order Total</span>
-            <span style={{ fontWeight: 700, fontSize: '1.3rem', color: 'var(--color-burgundy)' }}>${order.totalAmount?.toFixed(2)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(106,91,83,0.1)', paddingTop: 14 }}>
+            <span style={{ fontWeight: 600 }}>Total Order Amount</span>
+            <span style={{ fontWeight: 700, fontSize: '1.4rem', color: 'var(--color-burgundy)' }}>Rs. {Math.round(order.totalAmount || 0).toLocaleString()}</span>
           </div>
 
-          <button onClick={save} disabled={saving} className="btn btn-primary" style={{ width: '100%', padding: 14 }}>
-            {saving ? 'Saving...' : 'Save Status & Close'}
+          <button onClick={saveOrderStatus} disabled={saving} className="btn btn-primary" style={{ width: '100%', padding: 14 }}>
+            {saving ? 'Saving...' : 'Save Lifecycle Status & Close'}
           </button>
         </div>
       </div>
@@ -188,79 +354,34 @@ const OrderModal = ({ order, token, onClose, onSaved }) => {
   );
 };
 
-// ─── Analytics tab ────────────────────────────────────────────────────────
-const AnalyticsTab = ({ token }) => {
-  const { data, loading } = useData(`${API}/admin/analytics`, token);
-
-  if (loading) return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 20 }}>
-      {[1,2,3,4].map(i => <SkeletonBlock key={i} height={100} borderRadius={16} />)}
-    </div>
-  );
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(210px,1fr))', gap: 20 }}>
-        <StatCard icon={DollarSign} label="Total Revenue"  value={`$${(data?.totalRevenue || 0).toFixed(2)}`} color="var(--color-gold)" />
-        <StatCard icon={ShoppingBag} label="Total Orders"  value={data?.totalOrders  ?? 0} />
-        <StatCard icon={Users}       label="Total Users"   value={data?.totalUsers   ?? 0} color="var(--color-success)" />
-        <StatCard icon={Package}     label="Products"      value={data?.totalProducts ?? 0} color="var(--color-rose-dark)" />
-      </div>
-
-      {data?.monthlySales?.length > 0 && (
-        <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
-          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', color: 'var(--color-burgundy)', marginBottom: 20 }}>Monthly Sales</h4>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.87rem' }}>
-              <thead><tr style={{ borderBottom: '2px solid rgba(106,91,83,0.1)', background: 'var(--bg-secondary)' }}>
-                {['Month','Orders','Revenue'].map(h => <TH key={h}>{h}</TH>)}
-              </tr></thead>
-              <tbody>
-                {data.monthlySales.map(r => (
-                  <tr key={r._id} style={{ borderBottom: '1px solid rgba(106,91,83,0.06)' }}>
-                    <TD>{r._id}</TD>
-                    <TD style={{ color: 'var(--color-text-secondary)' }}>{r.count}</TD>
-                    <TD style={{ fontWeight: 600, color: 'var(--color-burgundy)' }}>${r.revenue.toFixed(2)}</TD>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {data?.recentOrders?.length > 0 && (
-        <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
-          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', color: 'var(--color-burgundy)', marginBottom: 20 }}>Recent Orders</h4>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.87rem' }}>
-              <thead><tr style={{ borderBottom: '2px solid rgba(106,91,83,0.1)', background: 'var(--bg-secondary)' }}>
-                {['Order ID','Customer','Amount','Status','Date'].map(h => <TH key={h}>{h}</TH>)}
-              </tr></thead>
-              <tbody>
-                {data.recentOrders.map(o => (
-                  <tr key={o._id} style={{ borderBottom: '1px solid rgba(106,91,83,0.06)' }}>
-                    <TD style={{ fontFamily: 'monospace', fontSize: '0.79rem' }}>#{o._id.slice(-8)}</TD>
-                    <TD>{o.user?.username || '—'}</TD>
-                    <TD style={{ fontWeight: 600, color: 'var(--color-burgundy)' }}>${o.totalAmount?.toFixed(2)}</TD>
-                    <TD><StatusBadge status={o.status} /></TD>
-                    <TD style={{ color: 'var(--color-text-muted)' }}>{new Date(o.createdAt).toLocaleDateString()}</TD>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ─── Orders tab ───────────────────────────────────────────────────────────
+// ─── 1. Orders Tab ───────────────────────────────────────────────────────────
 const OrdersTab = ({ token }) => {
   const { data, loading, refetch } = useData(`${API}/orders`, token);
   const [selected, setSelected] = useState(null);
+  const [filterMethod, setFilterMethod] = useState('All');
+  const [filterPayment, setFilterPayment] = useState('All');
+  const { toast } = useToast();
   const list = Array.isArray(data) ? data : [];
+
+  const handleQuickPaymentStatus = async (e, orderId, paymentStatus) => {
+    e.stopPropagation();
+    try {
+      await apiFetch(`${API}/orders/${orderId}/payment-status`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ paymentStatus }),
+      });
+      toast.success(`Order payment marked as ${paymentStatus}`);
+      refetch();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const filteredList = list.filter((o) => {
+    const matchMethod = filterMethod === 'All' ? true : o.paymentMethod === filterMethod;
+    const matchPay = filterPayment === 'All' ? true : (o.paymentStatus || 'Pending Verification') === filterPayment;
+    return matchMethod && matchPay;
+  });
 
   if (loading) return <SkeletonBlock height={300} borderRadius={16} />;
 
@@ -268,31 +389,85 @@ const OrdersTab = ({ token }) => {
     <>
       {selected && <OrderModal order={selected} token={token} onClose={() => setSelected(null)} onSaved={refetch} />}
       <div className="glass-panel" style={{ borderRadius: 16, overflow: 'hidden' }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(106,91,83,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontWeight: 600, color: 'var(--color-text-secondary)', fontSize: '0.87rem' }}>{list.length} orders total</span>
-          <button onClick={refetch} style={{ border: '1px solid rgba(106,91,83,0.2)', background: 'transparent', borderRadius: 8, padding: '6px 14px', fontSize: '0.8rem', cursor: 'pointer', color: 'var(--color-burgundy)', fontWeight: 600 }}>↻ Refresh</button>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(106,91,83,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 700, color: 'var(--color-burgundy)', fontSize: '0.9rem' }}>{filteredList.length} orders</span>
+            <span style={{ color: 'rgba(0,0,0,0.2)' }}>|</span>
+            {['All', 'Bank Transfer', 'Cash on Delivery (COD)'].map((m) => (
+              <button key={m} onClick={() => setFilterMethod(m)} style={{ padding: '5px 12px', borderRadius: 16, border: filterMethod === m ? 'none' : '1px solid rgba(106,91,83,0.15)', background: filterMethod === m ? 'var(--color-burgundy)' : 'transparent', color: filterMethod === m ? 'white' : 'var(--color-text-secondary)', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
+                {m}
+              </button>
+            ))}
+            <span style={{ color: 'rgba(0,0,0,0.2)' }}>|</span>
+            {['All', 'Pending Verification', 'Approved', 'Rejected'].map((p) => (
+              <button key={p} onClick={() => setFilterPayment(p)} style={{ padding: '5px 12px', borderRadius: 16, border: filterPayment === p ? 'none' : '1px solid rgba(106,91,83,0.15)', background: filterPayment === p ? 'var(--color-gold)' : 'transparent', color: filterPayment === p ? 'white' : 'var(--color-text-secondary)', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
+                {p}
+              </button>
+            ))}
+          </div>
+          <button onClick={refetch} style={{ border: '1px solid rgba(106,91,83,0.2)', background: 'white', borderRadius: 8, padding: '6px 14px', fontSize: '0.8rem', cursor: 'pointer', color: 'var(--color-burgundy)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <RefreshCw size={13} /> Refresh
+          </button>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
-            <thead><tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid rgba(106,91,83,0.08)' }}>
-              {['Order ID','Customer','Total','Items','Status','Date',''].map((h,i) => <TH key={i}>{h}</TH>)}
-            </tr></thead>
+            <thead>
+              <tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid rgba(106,91,83,0.08)' }}>
+                {['Order ID', 'Customer', 'Payment Method', 'Payment Verification', 'Total', 'Order Status', 'Date', 'Actions'].map((h, i) => <TH key={i}>{h}</TH>)}
+              </tr>
+            </thead>
             <tbody>
-              {list.length === 0 ? (
-                <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No orders found.</td></tr>
-              ) : list.map(o => (
-                <tr key={o._id} onClick={() => setSelected(o)} style={{ borderBottom: '1px solid rgba(106,91,83,0.06)', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  <TD style={{ fontFamily: 'monospace', fontSize: '0.79rem' }}>#{o._id.slice(-8)}</TD>
-                  <TD><span style={{ fontWeight: 600 }}>{o.user?.username || '—'}</span><br /><span style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)' }}>{o.user?.email}</span></TD>
-                  <TD style={{ fontWeight: 600, color: 'var(--color-burgundy)' }}>${o.totalAmount?.toFixed(2)}</TD>
-                  <TD style={{ color: 'var(--color-text-secondary)' }}>{o.orderItems?.length}</TD>
-                  <TD><StatusBadge status={o.status} /></TD>
-                  <TD style={{ color: 'var(--color-text-muted)' }}>{new Date(o.createdAt).toLocaleDateString()}</TD>
-                  <TD><ChevronRight size={16} color="var(--color-text-muted)" /></TD>
-                </tr>
-              ))}
+              {filteredList.length === 0 ? (
+                <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No matching orders found.</td></tr>
+              ) : (
+                filteredList.map((o) => (
+                  <tr key={o._id} onClick={() => setSelected(o)} style={{ borderBottom: '1px solid rgba(106,91,83,0.06)', cursor: 'pointer' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                    <TD style={{ fontFamily: 'monospace', fontSize: '0.79rem', fontWeight: 700 }}>#{o._id.slice(-8)}</TD>
+                    <TD>
+                      <span style={{ fontWeight: 600 }}>{o.shippingAddress?.firstName} {o.shippingAddress?.lastName || o.user?.username}</span>
+                      <br />
+                      <span style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)' }}>{o.contactInfo?.emailOrPhone || o.user?.email}</span>
+                    </TD>
+                    <TD><span style={{ fontWeight: 600, color: o.paymentMethod === 'Bank Transfer' ? 'var(--color-burgundy)' : 'inherit' }}>{o.paymentMethod}</span></TD>
+                    <TD>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={o.paymentStatus || 'Pending Verification'}
+                          onChange={(e) => handleQuickPaymentStatus(e, o._id, e.target.value)}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: 14,
+                            fontSize: '0.76rem',
+                            fontWeight: 700,
+                            border: '1px solid rgba(106,91,83,0.2)',
+                            background: o.paymentStatus === 'Approved' ? 'rgba(110,138,115,0.15)' : o.paymentStatus === 'Rejected' ? 'rgba(176,92,92,0.15)' : 'rgba(197,160,89,0.18)',
+                            color: o.paymentStatus === 'Approved' ? 'var(--color-success)' : o.paymentStatus === 'Rejected' ? 'var(--color-error)' : '#A07828',
+                            cursor: 'pointer',
+                            outline: 'none',
+                          }}
+                        >
+                          <option value="Pending Verification">⏳ Pending</option>
+                          <option value="Approved">✓ Approved</option>
+                          <option value="Rejected">✕ Rejected</option>
+                        </select>
+                      </div>
+                    </TD>
+                    <TD style={{ fontWeight: 700, color: 'var(--color-burgundy)' }}>Rs. {Math.round(o.totalAmount || 0).toLocaleString()}</TD>
+                    <TD><StatusBadge status={o.status} /></TD>
+                    <TD style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>{new Date(o.createdAt).toLocaleDateString()}</TD>
+                    <TD>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSelected(o); }}
+                        style={{ border: '1px solid var(--color-burgundy)', background: 'transparent', color: 'var(--color-burgundy)', borderRadius: 6, padding: '4px 10px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Inspect
+                      </button>
+                    </TD>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -301,141 +476,164 @@ const OrdersTab = ({ token }) => {
   );
 };
 
-// ─── Customers tab ────────────────────────────────────────────────────────
-const CustomersTab = ({ token }) => {
-  const { data, loading } = useData(`${API}/admin/customers`, token);
-  const [expanded, setExpanded] = useState(null);
+// ─── 2. Sales Tab ────────────────────────────────────────────────────────────
+const SalesTab = ({ token }) => {
+  const { toast } = useToast();
+  const { data, loading, refetch } = useData(`${API}/sales`, token);
+  const emptySale = { name: '', slug: '', badgeText: '', description: '', discountPercent: 0, bannerImage: '', isActive: true, showOnNavbar: true };
+  const [form, setForm] = useState(emptySale);
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState(null);
   const list = Array.isArray(data) ? data : [];
 
-  if (loading) return <SkeletonBlock height={250} borderRadius={16} />;
+  const submit = async (e) => {
+    e.preventDefault();
+    const url = editId ? `${API}/sales/${editId}` : `${API}/sales`;
+    const method = editId ? 'PUT' : 'POST';
+    try {
+      await apiFetch(url, token, { method, body: JSON.stringify(form) });
+      toast.success(editId ? 'Sale campaign updated.' : 'Sale campaign created.');
+      setShowForm(false); setEditId(null); setForm(emptySale); refetch();
+    } catch (e) { toast.error(e.message); }
+  };
+
+  const del = async (id, name) => {
+    if (!window.confirm(`Delete sale "${name}"? Associated products will be unlinked safely.`)) return;
+    try {
+      await apiFetch(`${API}/sales/${id}`, token, { method: 'DELETE' });
+      toast.success(`${name} removed.`); refetch();
+    } catch (e) { toast.error(e.message); }
+  };
+
+  if (loading) return <SkeletonBlock height={200} borderRadius={16} />;
 
   return (
-    <div className="glass-panel" style={{ borderRadius: 16, overflow: 'hidden' }}>
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(106,91,83,0.08)' }}>
-        <span style={{ fontWeight: 600, color: 'var(--color-text-secondary)', fontSize: '0.87rem' }}>{list.length} registered customers</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-burgundy)' }}>Sales & Campaigns</h3>
+          <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 2 }}>Create special sale events (e.g. Azadi Sale) and assign perfumes. Disabling a sale resets all product assignments automatically.</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm(emptySale); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px' }}>
+          <Plus size={16} /> New Sale Campaign
+        </button>
       </div>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
-          <thead><tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid rgba(106,91,83,0.08)' }}>
-            {['Customer','Email','Joined','Orders','Total Spent',''].map((h,i) => <TH key={i}>{h}</TH>)}
-          </tr></thead>
-          <tbody>
-            {list.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No customers yet.</td></tr>
-            ) : list.map(c => (
-              <React.Fragment key={c._id}>
-                <tr onClick={() => setExpanded(expanded === c._id ? null : c._id)}
-                  style={{ borderBottom: '1px solid rgba(106,91,83,0.06)', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                  onMouseLeave={e => e.currentTarget.style.background = expanded === c._id ? 'rgba(250,246,240,0.6)' : 'transparent'}>
-                  <TD style={{ fontWeight: 600 }}>{c.username}</TD>
-                  <TD style={{ color: 'var(--color-text-secondary)' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Mail size={13} />{c.email}</span>
-                  </TD>
-                  <TD style={{ color: 'var(--color-text-muted)' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Calendar size={13} />{new Date(c.createdAt).toLocaleDateString()}</span>
-                  </TD>
-                  <TD>
-                    <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, background: 'rgba(89,53,48,0.08)', color: 'var(--color-burgundy)', fontWeight: 700, fontSize: '0.82rem' }}>{c.orderCount}</span>
-                  </TD>
-                  <TD style={{ fontWeight: 700, color: 'var(--color-burgundy)' }}>${c.totalSpent.toFixed(2)}</TD>
-                  <TD>
-                    <ChevronRight size={16} color="var(--color-text-muted)" style={{ transition: 'transform 0.2s', transform: expanded === c._id ? 'rotate(90deg)' : 'none' }} />
-                  </TD>
-                </tr>
 
-                {/* Expanded order rows for this customer */}
-                {expanded === c._id && (
-                  <tr style={{ borderBottom: '2px solid rgba(106,91,83,0.08)' }}>
-                    <td colSpan={6} style={{ padding: 0, background: 'rgba(250,246,240,0.6)' }}>
-                      <div style={{ padding: '16px 24px' }}>
-                        <p style={{ fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.06em', marginBottom: 14 }}>
-                          Orders by {c.username}
-                        </p>
-                        {c.orders.length === 0 ? (
-                          <p style={{ color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '0.87rem' }}>No orders placed yet.</p>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {c.orders.map(o => (
-                              <div key={o._id} style={{ background: 'white', borderRadius: 12, border: '1px solid rgba(106,91,83,0.1)', overflow: 'hidden' }}>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', padding: '12px 16px', fontSize: '0.85rem' }}>
-                                  <span style={{ fontFamily: 'monospace', color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>#{o._id.slice(-8)}</span>
-                                  <span style={{ color: 'var(--color-text-secondary)' }}>{new Date(o.createdAt).toLocaleDateString()}</span>
-                                  <span style={{ color: 'var(--color-text-secondary)' }}>{o.orderItems?.length} item{o.orderItems?.length !== 1 ? 's' : ''}</span>
-                                  <StatusBadge status={o.status} />
-                                  <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--color-burgundy)' }}>${o.totalAmount?.toFixed(2)}</span>
-                                </div>
-                                {/* Items mini-list */}
-                                <div style={{ padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                  {o.orderItems.map((item, idx) => (
-                                    <div key={idx} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                                      <div style={{ width: 36, height: 36, borderRadius: 6, overflow: 'hidden', background: 'var(--bg-secondary)', flexShrink: 0 }}>
-                                        <img src={item.imageUrl} alt={item.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                      </div>
-                                      <span style={{ fontSize: '0.83rem', color: 'var(--color-text-primary)' }}>{item.name}</span>
-                                      <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{item.size} × {item.quantity}</span>
-                                      <span style={{ marginLeft: 'auto', fontSize: '0.83rem', fontWeight: 600 }}>${(item.price * item.quantity).toFixed(2)}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                                {/* Shipping */}
-                                <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(106,91,83,0.06)', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                                  📦 {o.shippingAddress?.address}, {o.shippingAddress?.city}, {o.shippingAddress?.state} {o.shippingAddress?.postalCode}
-                                </div>
-                                {/* Timeline */}
-                                <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(106,91,83,0.06)' }}>
-                                  <OrderTimeline status={o.status} statusHistory={o.statusHistory} />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+      {showForm && (
+        <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
+          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', color: 'var(--color-burgundy)', marginBottom: 20 }}>
+            {editId ? 'Edit Sale Campaign' : 'Create New Sale Campaign'}
+          </h4>
+          <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Sale Name</label>
+              <input type="text" required className="form-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Azadi Sale" />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Badge Text</label>
+              <input type="text" className="form-input" value={form.badgeText} onChange={(e) => setForm({ ...form, badgeText: e.target.value })} placeholder="e.g. Azadi Sale 🔥" />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Discount Percentage (%)</label>
+              <input type="number" className="form-input" value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: Number(e.target.value) })} placeholder="15" />
+            </div>
+            <FileUploadField label="Banner Image (Upload or URL)" currentUrl={form.bannerImage} onUploaded={(url) => setForm((p) => ({ ...p, bannerImage: url }))} />
+            <div className="form-group" style={{ gridColumn: '1/-1', marginBottom: 0 }}>
+              <label className="form-label">Description</label>
+              <textarea rows={2} className="form-input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Special promo description..." />
+            </div>
+            <div style={{ display: 'flex', gap: 24, alignItems: 'center', paddingTop: 10 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.86rem' }}>
+                <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} style={{ width: 16, height: 16 }} />
+                Active Campaign
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.86rem' }}>
+                <input type="checkbox" checked={form.showOnNavbar} onChange={(e) => setForm({ ...form, showOnNavbar: e.target.checked })} style={{ width: 16, height: 16 }} />
+                Show Button on Navbar
+              </label>
+            </div>
+            <div style={{ gridColumn: '1/-1', display: 'flex', gap: 12, marginTop: 10 }}>
+              <button type="submit" className="btn btn-primary" style={{ padding: '10px 24px' }}>{editId ? 'Update Sale' : 'Create Sale'}</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)} style={{ padding: '10px 18px' }}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="glass-panel" style={{ borderRadius: 16, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid rgba(106,91,83,0.08)' }}>
+                {['Campaign Name', 'Slug', 'Discount', 'Status', 'Navbar Button', 'Actions'].map((h) => <TH key={h}>{h}</TH>)}
+              </tr>
+            </thead>
+            <tbody>
+              {list.length === 0 ? (
+                <tr><td colSpan={6} style={{ padding: 30, textAlign: 'center', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No sales campaigns yet. Create your first one!</td></tr>
+              ) : (
+                list.map((s) => (
+                  <tr key={s._id} style={{ borderBottom: '1px solid rgba(106,91,83,0.06)' }}>
+                    <TD style={{ fontWeight: 700, color: 'var(--color-burgundy)' }}>{s.name}</TD>
+                    <TD style={{ fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>/sale/{s.slug}</TD>
+                    <TD style={{ fontWeight: 600 }}>{s.discountPercent ? `${s.discountPercent}% OFF` : '—'}</TD>
+                    <TD><span style={{ color: s.isActive ? 'var(--color-success)' : 'var(--color-error)', fontWeight: 600 }}>{s.isActive ? 'Active' : 'Disabled'}</span></TD>
+                    <TD><span style={{ color: s.showOnNavbar ? 'var(--color-success)' : 'var(--color-text-muted)', fontWeight: 600 }}>{s.showOnNavbar ? '✓ Shown' : 'Hidden'}</span></TD>
+                    <TD>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => { setEditId(s._id); setForm(s); setShowForm(true); }} style={{ border: 'none', background: 'rgba(89,53,48,0.08)', borderRadius: 8, cursor: 'pointer', padding: '7px 9px' }}><Edit2 size={14} color="var(--color-burgundy)" /></button>
+                        <button onClick={() => del(s._id, s.name)} style={{ border: 'none', background: 'rgba(176,92,92,0.1)', borderRadius: 8, cursor: 'pointer', padding: '7px 9px' }}><Trash2 size={14} color="var(--color-error)" /></button>
                       </div>
-                    </td>
+                    </TD>
                   </tr>
-                )}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 };
 
-// ─── Products tab (with featured toggle) ─────────────────────────────────
+// ─── 3. Products Tab ─────────────────────────────────────────────────────────
 const ProductsTab = ({ token }) => {
   const { toast } = useToast();
   const { data, loading, refetch } = useData(`${API}/products`, token);
-  const [editingId, setEditingId]   = useState(null);
-  const [form, setForm]             = useState({});
-  const [showAdd, setShowAdd]       = useState(false);
-  const emptyNew = { name: '', description: '', price: '', imageUrl: '', category: 'Floral', stock: 50, notes: { top: '', middle: '', base: '' }, sizes: ['50ml','100ml'], featured: false };
+  const { data: salesData } = useData(`${API}/sales`, token);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState({});
+  const [showAdd, setShowAdd] = useState(false);
+
+  const emptyNew = { name: '', description: '', price: '', originalPrice: '', imageUrl: '', hoverImageUrl: '', category: 'Floral', saleId: '', stock: 50, notes: { top: '', middle: '', base: '' }, sizes: ['50ml', '100ml'], featured: false };
   const [newP, setNewP] = useState(emptyNew);
+  const salesList = Array.isArray(salesData) ? salesData : [];
 
   const del = async (id, name) => {
     if (!window.confirm(`Delete "${name}"?`)) return;
-    try { await apiFetch(`${API}/products/${id}`, token, { method: 'DELETE' }); toast.success(`${name} deleted.`); refetch(); }
-    catch (e) { toast.error(e.message); }
-  };
-
-  const saveEdit = async (id) => {
-    try { await apiFetch(`${API}/products/${id}`, token, { method: 'PUT', body: JSON.stringify(form) }); toast.success('Updated.'); setEditingId(null); refetch(); }
-    catch (e) { toast.error(e.message); }
-  };
-
-  const toggleFeatured = async (p) => {
     try {
-      await apiFetch(`${API}/products/${p._id}`, token, { method: 'PUT', body: JSON.stringify({ featured: !p.featured }) });
-      toast.success(`${p.name} ${!p.featured ? 'marked as featured' : 'removed from featured'}.`);
-      refetch();
+      await apiFetch(`${API}/products/${id}`, token, { method: 'DELETE' });
+      toast.success(`${name} deleted.`); refetch();
     } catch (e) { toast.error(e.message); }
   };
 
   const addP = async (e) => {
     e.preventDefault();
-    try { await apiFetch(`${API}/products`, token, { method: 'POST', body: JSON.stringify({ ...newP, price: Number(newP.price), stock: Number(newP.stock) }) }); toast.success('Product added.'); setShowAdd(false); setNewP(emptyNew); refetch(); }
-    catch (e) { toast.error(e.message); }
+    try {
+      await apiFetch(`${API}/products`, token, {
+        method: 'POST',
+        body: JSON.stringify({ ...newP, price: Number(newP.price), originalPrice: newP.originalPrice ? Number(newP.originalPrice) : null, stock: Number(newP.stock), saleId: newP.saleId || null }),
+      });
+      toast.success('Product created with dual-image support.');
+      setShowAdd(false); setNewP(emptyNew); refetch();
+    } catch (e) { toast.error(e.message); }
+  };
+
+  const saveEdit = async (id) => {
+    try {
+      await apiFetch(`${API}/products/${id}`, token, { method: 'PUT', body: JSON.stringify(form) });
+      toast.success('Product updated.'); setEditingId(null); refetch();
+    } catch (e) { toast.error(e.message); }
   };
 
   if (loading) return <SkeletonBlock height={300} borderRadius={16} />;
@@ -443,45 +641,93 @@ const ProductsTab = ({ token }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary" onClick={() => setShowAdd(!showAdd)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 22px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-burgundy)' }}>Perfume Catalogue</h3>
+          <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 2 }}>Manage dual images (main & hover) and assign perfumes to sales campaigns via the dropdown.</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => setShowAdd(!showAdd)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 22px' }}>
           <Plus size={16} /> Add Product
         </button>
       </div>
 
       {showAdd && (
         <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
-          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', color: 'var(--color-burgundy)', marginBottom: 20 }}>New Product</h4>
+          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', color: 'var(--color-burgundy)', marginBottom: 20 }}>New Fragrance</h4>
           <form onSubmit={addP} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            {[{l:'Name',k:'name',t:'text'},{l:'Price ($)',k:'price',t:'number'},{l:'Image URL',k:'imageUrl',t:'text'},{l:'Stock',k:'stock',t:'number'}].map(f => (
-              <div key={f.k} className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">{f.l}</label>
-                <input type={f.t} required className="form-input" value={newP[f.k]} onChange={e => setNewP(p => ({ ...p, [f.k]: e.target.value }))} />
-              </div>
-            ))}
-            <div className="form-group" style={{ marginBottom: 0, gridColumn: '1/-1' }}>
-              <label className="form-label">Description</label>
-              <textarea rows={2} className="form-input" value={newP.description} onChange={e => setNewP(p => ({ ...p, description: e.target.value }))} style={{ resize: 'vertical' }} />
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Name</label>
+              <input type="text" required className="form-input" value={newP.name} onChange={(e) => setNewP({ ...newP, name: e.target.value })} />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Category</label>
-              <select className="form-input" value={newP.category} onChange={e => setNewP(p => ({ ...p, category: e.target.value }))}>
-                {['Floral','Woody','Citrus','Amber','Fresh'].map(c => <option key={c}>{c}</option>)}
+              <select className="form-input" value={newP.category} onChange={(e) => setNewP({ ...newP, category: e.target.value })}>
+                {['Floral', 'Woody', 'Citrus', 'Amber', 'Fresh', 'Oriental', 'Gourmand'].map((c) => <option key={c}>{c}</option>)}
               </select>
             </div>
-            {['top','middle','base'].map(n => (
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Original Price (Regular / Before Discount Rs.)</label>
+              <input
+                type="number"
+                step="0.01"
+                className="form-input"
+                placeholder="e.g. 159.99"
+                value={newP.originalPrice}
+                onChange={(e) => setNewP({ ...newP, originalPrice: e.target.value })}
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Final Selling Price (After Discount Rs.)</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                className="form-input"
+                placeholder="e.g. 129.99"
+                value={newP.price}
+                onChange={(e) => setNewP({ ...newP, price: e.target.value })}
+              />
+            </div>
+
+            {/* Live Discount Calculator Preview */}
+            {newP.originalPrice && Number(newP.originalPrice) > Number(newP.price) && Number(newP.price) > 0 && (
+              <div style={{ gridColumn: '1/-1', background: 'rgba(168,44,44,0.08)', border: '1px solid rgba(168,44,44,0.25)', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Flame size={16} color="#A82C2C" />
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#A82C2C' }}>
+                  Live Discount: {Math.round(((Number(newP.originalPrice) - Number(newP.price)) / Number(newP.originalPrice)) * 100)}% OFF
+                </span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                  (Customer saves Rs. {Math.round(Number(newP.originalPrice) - Number(newP.price)).toLocaleString()} on this fragrance)
+                </span>
+              </div>
+            )}
+
+            <FileUploadField label="Main Image 1 (Upload or URL)" currentUrl={newP.imageUrl} onUploaded={(url) => setNewP((p) => ({ ...p, imageUrl: url }))} />
+            <FileUploadField label="Hover Image 2 (Upload or URL)" currentUrl={newP.hoverImageUrl} onUploaded={(url) => setNewP((p) => ({ ...p, hoverImageUrl: url }))} />
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Assign to Sale Campaign</label>
+              <select className="form-input" value={newP.saleId} onChange={(e) => setNewP({ ...newP, saleId: e.target.value })}>
+                <option value="">-- None (Regular Catalogue) --</option>
+                {salesList.map((s) => <option key={s._id} value={s._id}>{s.name} ({s.discountPercent ? `${s.discountPercent}% off` : 'Sale'})</option>)}
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Stock Units</label>
+              <input type="number" required className="form-input" value={newP.stock} onChange={(e) => setNewP({ ...newP, stock: e.target.value })} />
+            </div>
+            {['top', 'middle', 'base'].map((n) => (
               <div key={n} className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">{n.charAt(0).toUpperCase()+n.slice(1)} Notes</label>
-                <input type="text" className="form-input" value={newP.notes[n]} onChange={e => setNewP(p => ({ ...p, notes: { ...p.notes, [n]: e.target.value } }))} />
+                <label className="form-label">{n.charAt(0).toUpperCase() + n.slice(1)} Notes</label>
+                <input type="text" className="form-input" value={newP.notes[n]} onChange={(e) => setNewP({ ...newP, notes: { ...newP.notes, [n]: e.target.value } })} />
               </div>
             ))}
-            <div className="form-group" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 10, paddingTop: 24 }}>
-              <input type="checkbox" id="newFeatured" checked={newP.featured} onChange={e => setNewP(p => ({ ...p, featured: e.target.checked }))} style={{ width: 16, height: 16 }} />
-              <label htmlFor="newFeatured" className="form-label" style={{ marginBottom: 0 }}>Featured on Homepage</label>
+            <div className="form-group" style={{ gridColumn: '1/-1', marginBottom: 0 }}>
+              <label className="form-label">Description</label>
+              <textarea rows={2} className="form-input" value={newP.description} onChange={(e) => setNewP({ ...newP, description: e.target.value })} />
             </div>
-            <div style={{ gridColumn: '1/-1', display: 'flex', gap: 12, marginTop: 4 }}>
-              <button type="submit" className="btn btn-primary" style={{ padding: '12px 24px' }}>Save</button>
-              <button type="button" className="btn btn-secondary" onClick={() => setShowAdd(false)} style={{ padding: '12px 20px' }}>Cancel</button>
+            <div style={{ gridColumn: '1/-1', display: 'flex', gap: 12, marginTop: 10 }}>
+              <button type="submit" className="btn btn-primary" style={{ padding: '10px 24px' }}>Save Fragrance</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowAdd(false)} style={{ padding: '10px 18px' }}>Cancel</button>
             </div>
           </form>
         </div>
@@ -490,238 +736,629 @@ const ProductsTab = ({ token }) => {
       <div className="glass-panel" style={{ borderRadius: 16, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
-            <thead><tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid rgba(106,91,83,0.08)' }}>
-              {['Image','Name','Category','Price','Stock','Featured','Rating','Actions'].map(h => <TH key={h}>{h}</TH>)}
-            </tr></thead>
+            <thead>
+              <tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid rgba(106,91,83,0.08)' }}>
+                {['Images', 'Name', 'Category', 'Discount / Sale', 'Price', 'Stock', 'Rating', 'Actions'].map((h) => <TH key={h}>{h}</TH>)}
+              </tr>
+            </thead>
             <tbody>
-              {list.map(p => (
-                <tr key={p._id} style={{ borderBottom: '1px solid rgba(106,91,83,0.06)' }}>
-                  <TD><div style={{ width: 44, height: 44, borderRadius: 8, overflow: 'hidden', background: 'var(--bg-secondary)' }}><img src={p.imageUrl} alt={p.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div></TD>
-                  <TD style={{ fontWeight: 600 }}>{editingId === p._id ? <input className="form-input" style={{ padding: '6px 10px' }} value={form.name ?? p.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /> : p.name}</TD>
-                  <TD style={{ color: 'var(--color-text-secondary)' }}>{p.category}</TD>
-                  <TD>{editingId === p._id ? <input type="number" className="form-input" style={{ padding: '6px 10px', width: 80 }} value={form.price ?? p.price} onChange={e => setForm(f => ({ ...f, price: Number(e.target.value) }))} /> : `$${p.price.toFixed(2)}`}</TD>
-                  <TD>{editingId === p._id ? <input type="number" className="form-input" style={{ padding: '6px 10px', width: 70 }} value={form.stock ?? p.stock} onChange={e => setForm(f => ({ ...f, stock: Number(e.target.value) }))} /> : <span style={{ color: p.stock < 10 ? 'var(--color-error)' : 'inherit', fontWeight: p.stock < 10 ? 600 : 400 }}>{p.stock}</span>}</TD>
-                  <TD>
-                    {/* Featured toggle */}
-                    <button
-                      onClick={() => toggleFeatured(p)}
-                      title={p.featured ? 'Remove from featured' : 'Mark as featured'}
-                      style={{ border: 'none', borderRadius: 20, padding: '5px 14px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, background: p.featured ? 'rgba(197,160,89,0.18)' : 'rgba(106,91,83,0.08)', color: p.featured ? 'var(--color-gold)' : 'var(--color-text-muted)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <Sparkles size={12} /> {p.featured ? 'Featured' : 'Set Featured'}
-                    </button>
-                  </TD>
-                  <TD>{p.rating} ★</TD>
-                  <TD>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {editingId === p._id ? (
-                        <>
-                          <button className="btn btn-primary" onClick={() => saveEdit(p._id)} style={{ padding: '7px 14px', fontSize: '0.78rem' }}>Save</button>
-                          <button className="btn btn-secondary" onClick={() => setEditingId(null)} style={{ padding: '7px 12px', fontSize: '0.78rem' }}>Cancel</button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => { setEditingId(p._id); setForm({ name: p.name, price: p.price, stock: p.stock }); }} style={{ border: 'none', background: 'rgba(89,53,48,0.08)', borderRadius: 8, cursor: 'pointer', padding: '7px 9px' }} title="Edit"><Edit2 size={14} color="var(--color-burgundy)" /></button>
-                          <button onClick={() => del(p._id, p.name)} style={{ border: 'none', background: 'rgba(176,92,92,0.1)', borderRadius: 8, cursor: 'pointer', padding: '7px 9px' }} title="Delete"><Trash2 size={14} color="var(--color-error)" /></button>
-                        </>
-                      )}
-                    </div>
-                  </TD>
-                </tr>
-              ))}
+              {list.length === 0 ? (
+                <tr><td colSpan={8} style={{ padding: 30, textAlign: 'center', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No products yet.</td></tr>
+              ) : (
+                list.map((p) => {
+                  const pct = p.originalPrice && p.originalPrice > p.price
+                    ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
+                    : null;
+                  return (
+                    <tr key={p._id} style={{ borderBottom: '1px solid rgba(106,91,83,0.06)' }}>
+                      <TD>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <img src={p.imageUrl} alt="Main" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} title="Main Image" />
+                          {p.hoverImageUrl && <img src={p.hoverImageUrl} alt="Hover" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', opacity: 0.8 }} title="Hover Image 2" />}
+                        </div>
+                      </TD>
+                      <TD style={{ fontWeight: 600 }}>{p.name}</TD>
+                      <TD>{p.category}</TD>
+                      <TD>
+                        {pct ? (
+                          <span style={{ background: 'linear-gradient(135deg, #A82C2C, #7A1C1C)', color: 'white', padding: '3px 8px', borderRadius: 12, fontSize: '0.74rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                            <Flame size={11} fill="#FFE082" color="#FFE082" /> {pct}% OFF
+                          </span>
+                        ) : p.saleId ? (
+                          <span style={{ background: 'rgba(168,44,44,0.12)', color: '#A82C2C', padding: '3px 8px', borderRadius: 12, fontSize: '0.74rem', fontWeight: 700 }}>
+                            {typeof p.saleId === 'object' ? p.saleId.name : 'On Sale 🔥'}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>Regular Price</span>
+                        )}
+                      </TD>
+                      <TD>
+                        <span style={{ fontWeight: 700, color: 'var(--color-burgundy)' }}>Rs. {Math.round(p.price).toLocaleString()}</span>
+                        {p.originalPrice && p.originalPrice > p.price && (
+                          <span style={{ marginLeft: 6, fontSize: '0.76rem', color: 'var(--color-text-muted)', textDecoration: 'line-through' }}>
+                            Rs. {Math.round(p.originalPrice).toLocaleString()}
+                          </span>
+                        )}
+                      </TD>
+                      <TD>{p.stock}</TD>
+                      <TD>{p.rating} ★</TD>
+                      <TD>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            onClick={() => {
+                              setEditingId(p._id);
+                              setForm({
+                                name: p.name, category: p.category, price: p.price,
+                                originalPrice: p.originalPrice || '',
+                                imageUrl: p.imageUrl, hoverImageUrl: p.hoverImageUrl || '',
+                                saleId: typeof p.saleId === 'object' && p.saleId?._id ? p.saleId._id : p.saleId || '',
+                                stock: p.stock, description: p.description,
+                                notes: p.notes || { top: '', middle: '', base: '' },
+                              });
+                            }}
+                            style={{ border: 'none', background: 'rgba(89,53,48,0.08)', borderRadius: 8, cursor: 'pointer', padding: '7px 9px' }}
+                            title="Edit Fragrance"
+                          >
+                            <Edit2 size={14} color="var(--color-burgundy)" />
+                          </button>
+                          <button onClick={() => del(p._id, p.name)} style={{ border: 'none', background: 'rgba(176,92,92,0.1)', borderRadius: 8, cursor: 'pointer', padding: '7px 9px' }} title="Delete">
+                            <Trash2 size={14} color="var(--color-error)" />
+                          </button>
+                        </div>
+                      </TD>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
       </div>
-    </div>
-  );
-};
 
-// ─── Reviews tab ──────────────────────────────────────────────────────────
-const ReviewsTab = ({ token }) => {
-  const { toast } = useToast();
-  const { data, loading, refetch } = useData(`${API}/reviews/admin/all`, token);
-  const list = Array.isArray(data) ? data : [];
+      {/* Edit Product Modal */}
+      {editingId && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,34,30,0.6)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setEditingId(null)}>
+          <div style={{ background: 'var(--bg-primary)', borderRadius: 20, width: '100%', maxWidth: 680, maxHeight: '90vh', overflowY: 'auto', padding: 28, boxShadow: '0 24px 60px rgba(0,0,0,0.25)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-burgundy)' }}>Edit Fragrance</h4>
+              <button onClick={() => setEditingId(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}><X size={20} /></button>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); saveEdit(editingId); }} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Name</label>
+                <input type="text" required className="form-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Category</label>
+                <select className="form-input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                  {['Floral', 'Woody', 'Citrus', 'Amber', 'Fresh', 'Oriental', 'Gourmand'].map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Original Price (Strike-through Rs.)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="form-input"
+                  placeholder="e.g. 159.99"
+                  value={form.originalPrice}
+                  onChange={(e) => setForm({ ...form, originalPrice: e.target.value ? Number(e.target.value) : null })}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Final Selling Price (Rs.)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  className="form-input"
+                  placeholder="e.g. 129.99"
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+                />
+              </div>
 
-  const toggleApproval = async (id) => {
-    try { await apiFetch(`${API}/reviews/admin/${id}/approve`, token, { method: 'PUT' }); toast.success('Updated.'); refetch(); }
-    catch (e) { toast.error(e.message); }
-  };
-  const del = async (id) => {
-    try { await apiFetch(`${API}/reviews/${id}`, token, { method: 'DELETE' }); toast.success('Review deleted.'); refetch(); }
-    catch (e) { toast.error(e.message); }
-  };
-
-  if (loading) return <SkeletonBlock height={200} borderRadius={16} />;
-
-  return (
-    <div className="glass-panel" style={{ borderRadius: 16, overflow: 'hidden' }}>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
-          <thead><tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid rgba(106,91,83,0.08)' }}>
-            {['User','Product','Rating','Comment','Status','Date','Actions'].map(h => <TH key={h}>{h}</TH>)}
-          </tr></thead>
-          <tbody>
-            {list.length === 0
-              ? <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No reviews yet.</td></tr>
-              : list.map(r => (
-              <tr key={r._id} style={{ borderBottom: '1px solid rgba(106,91,83,0.06)' }}>
-                <TD style={{ fontWeight: 500 }}>{r.user?.username}</TD>
-                <TD style={{ color: 'var(--color-text-secondary)' }}>{r.product?.name}</TD>
-                <TD>{'★'.repeat(r.rating)}</TD>
-                <TD style={{ maxWidth: 200, color: 'var(--color-text-secondary)' }}><span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{r.comment}</span></TD>
-                <TD>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: '0.76rem', fontWeight: 600, background: r.isApproved ? 'rgba(110,138,115,0.15)' : 'rgba(176,92,92,0.12)', color: r.isApproved ? 'var(--color-success)' : 'var(--color-error)' }}>
-                    {r.isApproved ? <CheckCircle size={12} /> : <XCircle size={12} />}{r.isApproved ? 'Approved' : 'Hidden'}
+              {/* Live Discount Calculator Preview in Edit Modal */}
+              {form.originalPrice && Number(form.originalPrice) > Number(form.price) && Number(form.price) > 0 && (
+                <div style={{ gridColumn: '1/-1', background: 'rgba(168,44,44,0.08)', border: '1px solid rgba(168,44,44,0.25)', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Flame size={16} color="#A82C2C" />
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#A82C2C' }}>
+                    Live Discount: {Math.round(((Number(form.originalPrice) - Number(form.price)) / Number(form.originalPrice)) * 100)}% OFF
                   </span>
-                </TD>
-                <TD style={{ color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{new Date(r.createdAt).toLocaleDateString()}</TD>
-                <TD>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => toggleApproval(r._id)} style={{ border: 'none', background: r.isApproved ? 'rgba(176,92,92,0.1)' : 'rgba(110,138,115,0.1)', borderRadius: 8, cursor: 'pointer', padding: '7px 10px', fontSize: '0.75rem', fontWeight: 600, color: r.isApproved ? 'var(--color-error)' : 'var(--color-success)' }}>
-                      {r.isApproved ? 'Hide' : 'Approve'}
-                    </button>
-                    <button onClick={() => del(r._id)} style={{ border: 'none', background: 'rgba(176,92,92,0.1)', borderRadius: 8, cursor: 'pointer', padding: '7px 9px' }}><Trash2 size={14} color="var(--color-error)" /></button>
-                  </div>
-                </TD>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                    (Customer saves Rs. {Math.round(Number(form.originalPrice) - Number(form.price)).toLocaleString()})
+                  </span>
+                </div>
+              )}
+
+              <FileUploadField label="Main Image 1 (Upload or URL)" currentUrl={form.imageUrl} onUploaded={(url) => setForm((p) => ({ ...p, imageUrl: url }))} />
+              <FileUploadField label="Hover Image 2 (Upload or URL)" currentUrl={form.hoverImageUrl} onUploaded={(url) => setForm((p) => ({ ...p, hoverImageUrl: url }))} />
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Assign to Sale Campaign</label>
+                <select className="form-input" value={form.saleId || ''} onChange={(e) => setForm({ ...form, saleId: e.target.value || null })}>
+                  <option value="">-- None (Original Category Only) --</option>
+                  {salesList.map((s) => <option key={s._id} value={s._id}>{s.name} ({s.discountPercent ? `${s.discountPercent}% off` : 'Sale'})</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Stock Units</label>
+                <input type="number" required className="form-input" value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} />
+              </div>
+              <div className="form-group" style={{ gridColumn: '1/-1', marginBottom: 0 }}>
+                <label className="form-label">Description</label>
+                <textarea rows={2} className="form-input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              </div>
+              <div style={{ gridColumn: '1/-1', display: 'flex', gap: 12, marginTop: 10 }}>
+                <button type="submit" className="btn btn-primary" style={{ padding: '10px 24px' }}>Save Changes</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setEditingId(null)} style={{ padding: '10px 18px' }}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-// ─── Coupons tab ──────────────────────────────────────────────────────────
-const CouponsTab = ({ token }) => {
+// ─── 4. Banners Tab ──────────────────────────────────────────────────────────
+const BannersTab = ({ token }) => {
   const { toast } = useToast();
-  const { data, loading, refetch } = useData(`${API}/coupons`, token);
-  const emptyForm = { code: '', discountType: 'percentage', discountValue: '', minPurchase: 0, maxUses: '', expiresAt: '', isActive: true };
-  const [form, setForm]       = useState(emptyForm);
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId]   = useState(null);
-  const list = Array.isArray(data) ? data : [];
+  const [siteConfig, setSiteConfig] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  const submit = async (e) => {
-    e.preventDefault();
-    const url    = editId ? `${API}/coupons/${editId}` : `${API}/coupons`;
-    const method = editId ? 'PUT' : 'POST';
+  useEffect(() => {
+    fetch('/api/site-config').then((r) => r.json()).then(setSiteConfig).catch(() => {});
+  }, []);
+
+  const saveBanners = async () => {
+    setSaving(true);
     try {
-      await apiFetch(url, token, { method, body: JSON.stringify({ ...form, discountValue: Number(form.discountValue), minPurchase: Number(form.minPurchase), maxUses: form.maxUses ? Number(form.maxUses) : null }) });
-      toast.success(editId ? 'Coupon updated.' : 'Coupon created.');
-      setShowForm(false); setEditId(null); setForm(emptyForm); refetch();
-    } catch (e) { toast.error(e.message); }
+      await apiFetch(`${API}/site-config/banners`, token, {
+        method: 'PUT',
+        body: JSON.stringify({
+          banner1: siteConfig.banner1,
+          banner2: siteConfig.banner2,
+          textBanner: siteConfig.textBanner,
+        }),
+      });
+      toast.success('Banners saved successfully.');
+    } catch (e) { toast.error(e.message); } finally { setSaving(false); }
   };
 
-  const del = async (id, code) => {
-    if (!window.confirm(`Delete ${code}?`)) return;
-    try { await apiFetch(`${API}/coupons/${id}`, token, { method: 'DELETE' }); toast.success(`${code} deleted.`); refetch(); }
-    catch (e) { toast.error(e.message); }
-  };
-
-  if (loading) return <SkeletonBlock height={200} borderRadius={16} />;
+  if (!siteConfig) return <SkeletonBlock height={300} borderRadius={16} />;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm(emptyForm); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 22px' }}>
-          <Plus size={16} /> New Coupon
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+      <div>
+        <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-burgundy)' }}>Homepage Banners Control</h3>
+        <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 2 }}>Manage pure image banners (Banner 1 & Banner 2) and the Scent of Elegance editorial text banner.</p>
+      </div>
+
+      {/* ── 1. Banner 1: Image Banner (After Value Strip) ── */}
+      <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.15rem', color: 'var(--color-burgundy)' }}>
+              1st Image Banner (Shown after Value Strip)
+            </h4>
+            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+              Pure graphic image banner (no overlaid text). Clicking takes the customer to the destination link.
+            </p>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={siteConfig.banner1?.active !== false}
+              onChange={(e) => setSiteConfig({ ...siteConfig, banner1: { ...siteConfig.banner1, active: e.target.checked } })}
+              style={{ width: 16, height: 16 }}
+            />
+            Show on Homepage
+          </label>
+        </div>
+
+        {/* Recommended size box */}
+        <div style={{ background: 'rgba(197,160,89,0.12)', border: '1px solid rgba(197,160,89,0.35)', borderRadius: 10, padding: '10px 16px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-burgundy)' }}>📐 Recommended Banner Dimensions:</span>
+          <span style={{ fontSize: '0.82rem', color: 'var(--color-text-primary)' }}><strong>1400 × 450 px</strong> (or 1920 × 600 px — Landscape 16:5 / 21:9 ratio)</span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ gridColumn: '1/-1' }}>
+            <FileUploadField
+              label="Banner 1 Image (Upload or Paste URL)"
+              currentUrl={siteConfig.banner1?.imageUrl || siteConfig.banner1?.bgImageUrl || ''}
+              onUploaded={(url) => setSiteConfig({ ...siteConfig, banner1: { ...siteConfig.banner1, imageUrl: url, bgImageUrl: url } })}
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Destination Link when Clicked</label>
+            <input
+              type="text"
+              className="form-input"
+              value={siteConfig.banner1?.ctaLink || '/shop'}
+              onChange={(e) => setSiteConfig({ ...siteConfig, banner1: { ...siteConfig.banner1, ctaLink: e.target.value } })}
+              placeholder="/shop or /sale/azadi-sale"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── 2. Pro Text Banner ("Scent of Elegance" - Before Studio Videos) ── */}
+      <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.15rem', color: 'var(--color-burgundy)' }}>
+              Text Promo Banner (Shown before "Behind the Scenes / Straight from the Studio")
+            </h4>
+            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+              High-end luxury text banner with custom title, quote, description, and "Shop Collection Now" button.
+            </p>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={siteConfig.textBanner?.active !== false}
+              onChange={(e) => setSiteConfig({ ...siteConfig, textBanner: { ...(siteConfig.textBanner || {}), active: e.target.checked } })}
+              style={{ width: 16, height: 16 }}
+            />
+            Show on Homepage
+          </label>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Tag Badge</label>
+            <input
+              type="text"
+              className="form-input"
+              value={siteConfig.textBanner?.tag ?? 'Signature Scent'}
+              onChange={(e) => setSiteConfig({ ...siteConfig, textBanner: { ...(siteConfig.textBanner || {}), tag: e.target.value } })}
+              placeholder="Signature Scent"
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Title Headline</label>
+            <input
+              type="text"
+              className="form-input"
+              value={siteConfig.textBanner?.title ?? 'Scent of Elegance'}
+              onChange={(e) => setSiteConfig({ ...siteConfig, textBanner: { ...(siteConfig.textBanner || {}), title: e.target.value } })}
+              placeholder="Scent of Elegance"
+            />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1/-1', marginBottom: 0 }}>
+            <label className="form-label">Subtitle Quote</label>
+            <input
+              type="text"
+              className="form-input"
+              value={siteConfig.textBanner?.subtitle ?? 'A fragrance that stays with you long after you have gone.'}
+              onChange={(e) => setSiteConfig({ ...siteConfig, textBanner: { ...(siteConfig.textBanner || {}), subtitle: e.target.value } })}
+              placeholder="A fragrance that stays with you long after you have gone."
+            />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1/-1', marginBottom: 0 }}>
+            <label className="form-label">Description Text</label>
+            <textarea
+              rows={2}
+              className="form-input"
+              value={siteConfig.textBanner?.description ?? 'Crafted with the rarest florals and rich amber resins. Rediscover your personal signature aroma today.'}
+              onChange={(e) => setSiteConfig({ ...siteConfig, textBanner: { ...(siteConfig.textBanner || {}), description: e.target.value } })}
+              placeholder="Crafted with the rarest florals..."
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">CTA Button Label</label>
+            <input
+              type="text"
+              className="form-input"
+              value={siteConfig.textBanner?.ctaLabel ?? 'Shop Collection Now'}
+              onChange={(e) => setSiteConfig({ ...siteConfig, textBanner: { ...(siteConfig.textBanner || {}), ctaLabel: e.target.value } })}
+              placeholder="Shop Collection Now"
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">CTA Button Link</label>
+            <input
+              type="text"
+              className="form-input"
+              value={siteConfig.textBanner?.ctaLink ?? '/shop'}
+              onChange={(e) => setSiteConfig({ ...siteConfig, textBanner: { ...(siteConfig.textBanner || {}), ctaLink: e.target.value } })}
+              placeholder="/shop"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. Banner 2: Image Banner (After Satisfied Customers) ── */}
+      <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.15rem', color: 'var(--color-burgundy)' }}>
+              2nd Image Banner (Shown after Satisfied Customers)
+            </h4>
+            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+              Pure graphic image banner (no overlaid text). Appears directly below the customer reviews carousel.
+            </p>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={siteConfig.banner2?.active !== false}
+              onChange={(e) => setSiteConfig({ ...siteConfig, banner2: { ...siteConfig.banner2, active: e.target.checked } })}
+              style={{ width: 16, height: 16 }}
+            />
+            Show on Homepage
+          </label>
+        </div>
+
+        {/* Recommended size box */}
+        <div style={{ background: 'rgba(197,160,89,0.12)', border: '1px solid rgba(197,160,89,0.35)', borderRadius: 10, padding: '10px 16px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-burgundy)' }}>📐 Recommended Banner Dimensions:</span>
+          <span style={{ fontSize: '0.82rem', color: 'var(--color-text-primary)' }}><strong>1400 × 450 px</strong> (or 1920 × 600 px — Landscape 16:5 / 21:9 ratio)</span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ gridColumn: '1/-1' }}>
+            <FileUploadField
+              label="Banner 2 Image (Upload or Paste URL)"
+              currentUrl={siteConfig.banner2?.imageUrl || siteConfig.banner2?.bgImageUrl || ''}
+              onUploaded={(url) => setSiteConfig({ ...siteConfig, banner2: { ...siteConfig.banner2, imageUrl: url, bgImageUrl: url } })}
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Destination Link when Clicked</label>
+            <input
+              type="text"
+              className="form-input"
+              value={siteConfig.banner2?.ctaLink || '/shop'}
+              onChange={(e) => setSiteConfig({ ...siteConfig, banner2: { ...siteConfig.banner2, ctaLink: e.target.value } })}
+              placeholder="/shop or /sale/azadi-sale"
+            />
+          </div>
+        </div>
+      </div>
+
+      <button onClick={saveBanners} disabled={saving} className="btn btn-primary" style={{ padding: '14px 36px', alignSelf: 'flex-start' }}>
+        {saving ? 'Saving Banners...' : 'Save All Banners'}
+      </button>
+    </div>
+  );
+};
+
+// ─── 5. Studio Videos Tab ────────────────────────────────────────────────────
+const StudioVideosTab = ({ token }) => {
+  const { toast } = useToast();
+  const [siteConfig, setSiteConfig] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/site-config').then((r) => r.json()).then(setSiteConfig).catch(() => {});
+  }, []);
+
+  const addVideo = () => {
+    const newVideo = { title: 'Studio Tour', tag: 'NEW', thumbnailUrl: '', videoUrl: '', videoPlatform: 'direct', active: true };
+    setSiteConfig({ ...siteConfig, studioVideos: [...(siteConfig.studioVideos || []), newVideo] });
+  };
+
+  const removeVideo = (idx) => setSiteConfig({ ...siteConfig, studioVideos: siteConfig.studioVideos.filter((_, i) => i !== idx) });
+
+  const saveVideos = async () => {
+    setSaving(true);
+    try {
+      await apiFetch(`${API}/site-config/studio-videos`, token, { method: 'PUT', body: JSON.stringify({ studioVideos: siteConfig.studioVideos }) });
+      toast.success('Studio videos carousel updated.');
+    } catch (e) { toast.error(e.message); } finally { setSaving(false); }
+  };
+
+  if (!siteConfig) return <SkeletonBlock height={300} borderRadius={16} />;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-burgundy)' }}>Straight from the Studio Videos</h3>
+          <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 2 }}>Vertical 9:16 video cards carousel. Auto-changes every 1 minute on the homepage.</p>
+        </div>
+        <button className="btn btn-secondary" onClick={addVideo} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px' }}>
+          <Plus size={15} /> Add Video Card
         </button>
       </div>
-      {showForm && (
-        <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
-          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', color: 'var(--color-burgundy)', marginBottom: 20 }}>{editId ? 'Edit' : 'Create'} Coupon</h4>
-          <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            {[{l:'Code',k:'code',t:'text'},{l:'Discount Value',k:'discountValue',t:'number'},{l:'Min Purchase ($)',k:'minPurchase',t:'number'},{l:'Max Uses',k:'maxUses',t:'number'},{l:'Expires At',k:'expiresAt',t:'date'}].map(f => (
-              <div key={f.k} className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">{f.l}</label>
-                <input type={f.t} className="form-input" value={form[f.k]} onChange={e => setForm(p => ({ ...p, [f.k]: e.target.value }))} required={f.k !== 'maxUses'} />
-              </div>
-            ))}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+        {(siteConfig.studioVideos || []).map((v, idx) => (
+          <div key={idx} className="glass-panel" style={{ padding: 20, borderRadius: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 700, color: 'var(--color-burgundy)', fontSize: '0.9rem' }}>Video Card #{idx + 1}</span>
+              <button onClick={() => removeVideo(idx)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-error)' }}><Trash2 size={15} /></button>
+            </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Discount Type</label>
-              <select className="form-input" value={form.discountType} onChange={e => setForm(p => ({ ...p, discountType: e.target.value }))}>
-                <option value="percentage">Percentage (%)</option>
-                <option value="fixed">Fixed Amount ($)</option>
-              </select>
+              <label className="form-label">Overlay Tag (Badge)</label>
+              <input type="text" className="form-input" value={v.tag} onChange={(e) => { const u = [...siteConfig.studioVideos]; u[idx].tag = e.target.value; setSiteConfig({ ...siteConfig, studioVideos: u }); }} placeholder="13,000+ CUSTOMERS!" />
             </div>
-            <div className="form-group" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 10, paddingTop: 24 }}>
-              <input type="checkbox" id="ca" checked={form.isActive} onChange={e => setForm(p => ({ ...p, isActive: e.target.checked }))} style={{ width: 16, height: 16 }} />
-              <label htmlFor="ca" className="form-label" style={{ marginBottom: 0 }}>Active</label>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Title</label>
+              <input type="text" className="form-input" value={v.title} onChange={(e) => { const u = [...siteConfig.studioVideos]; u[idx].title = e.target.value; setSiteConfig({ ...siteConfig, studioVideos: u }); }} />
             </div>
-            <div style={{ gridColumn: '1/-1', display: 'flex', gap: 12 }}>
-              <button type="submit" className="btn btn-primary" style={{ padding: '12px 24px' }}>{editId ? 'Update' : 'Create'}</button>
-              <button type="button" className="btn btn-secondary" onClick={() => { setShowForm(false); setEditId(null); setForm(emptyForm); }} style={{ padding: '12px 20px' }}>Cancel</button>
-            </div>
-          </form>
+            <FileUploadField label="Thumbnail (Upload or URL)" currentUrl={v.thumbnailUrl} onUploaded={(url) => { const u = [...siteConfig.studioVideos]; u[idx].thumbnailUrl = url; setSiteConfig({ ...siteConfig, studioVideos: u }); }} />
+            <FileUploadField label="Video File / URL (MP4, Youtube, Vimeo)" currentUrl={v.videoUrl} accept="video/*" onUploaded={(url) => { const u = [...siteConfig.studioVideos]; u[idx].videoUrl = url; setSiteConfig({ ...siteConfig, studioVideos: u }); }} />
+          </div>
+        ))}
+      </div>
+      <button onClick={saveVideos} disabled={saving} className="btn btn-primary" style={{ padding: '12px 30px', alignSelf: 'flex-start' }}>
+        {saving ? 'Saving...' : 'Save Studio Videos'}
+      </button>
+    </div>
+  );
+};
+
+// ─── 6. Testimonials Tab ─────────────────────────────────────────────────────
+const TestimonialsTab = ({ token }) => {
+  const { toast } = useToast();
+  const [siteConfig, setSiteConfig] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/site-config').then((r) => r.json()).then(setSiteConfig).catch(() => {});
+  }, []);
+
+  const addTestimonial = () => {
+    const newT = { customerPhoto: '', quote: 'Exceptional quality. Stays all day!', author: 'Customer Name', rating: 5, perfumeVariant: 'Spectra — Best Male', isVerified: true };
+    setSiteConfig({ ...siteConfig, testimonials: [...(siteConfig.testimonials || []), newT] });
+  };
+
+  const removeTestimonial = (idx) => setSiteConfig({ ...siteConfig, testimonials: siteConfig.testimonials.filter((_, i) => i !== idx) });
+
+  const saveTestimonials = async () => {
+    setSaving(true);
+    try {
+      await apiFetch(`${API}/site-config/testimonials`, token, { method: 'PUT', body: JSON.stringify({ testimonials: siteConfig.testimonials }) });
+      toast.success('Testimonials updated.');
+    } catch (e) { toast.error(e.message); } finally { setSaving(false); }
+  };
+
+  if (!siteConfig) return <SkeletonBlock height={300} borderRadius={16} />;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-burgundy)' }}>Satisfied Customers Testimonials</h3>
+          <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 2 }}>Manage customer unboxing photos, review quotes, star ratings, and perfume variant tags.</p>
         </div>
-      )}
-      <div className="glass-panel" style={{ borderRadius: 16, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
-            <thead><tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid rgba(106,91,83,0.08)' }}>
-              {['Code','Type','Value','Min','Used/Max','Expires','Active',''].map((h,i) => <TH key={i}>{h}</TH>)}
-            </tr></thead>
-            <tbody>
-              {list.map(c => (
-                <tr key={c._id} style={{ borderBottom: '1px solid rgba(106,91,83,0.06)' }}>
-                  <TD style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--color-burgundy)' }}>{c.code}</TD>
-                  <TD style={{ textTransform: 'capitalize' }}>{c.discountType}</TD>
-                  <TD style={{ fontWeight: 600 }}>{c.discountType === 'percentage' ? `${c.discountValue}%` : `$${c.discountValue}`}</TD>
-                  <TD>${c.minPurchase}</TD>
-                  <TD>{c.usedCount}/{c.maxUses ?? '∞'}</TD>
-                  <TD style={{ color: new Date(c.expiresAt) < new Date() ? 'var(--color-error)' : 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{new Date(c.expiresAt).toLocaleDateString()}</TD>
-                  <TD><span style={{ color: c.isActive ? 'var(--color-success)' : 'var(--color-text-muted)', fontWeight: 600 }}>{c.isActive ? '✓' : '✗'}</span></TD>
-                  <TD>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => { setEditId(c._id); setForm({ code: c.code, discountType: c.discountType, discountValue: c.discountValue, minPurchase: c.minPurchase, maxUses: c.maxUses ?? '', expiresAt: c.expiresAt?.slice(0,10), isActive: c.isActive }); setShowForm(true); }} style={{ border: 'none', background: 'rgba(89,53,48,0.08)', borderRadius: 8, cursor: 'pointer', padding: '7px 9px' }}><Edit2 size={14} color="var(--color-burgundy)" /></button>
-                      <button onClick={() => del(c._id, c.code)} style={{ border: 'none', background: 'rgba(176,92,92,0.1)', borderRadius: 8, cursor: 'pointer', padding: '7px 9px' }}><Trash2 size={14} color="var(--color-error)" /></button>
-                    </div>
-                  </TD>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <button className="btn btn-secondary" onClick={addTestimonial} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px' }}>
+          <Plus size={15} /> Add Testimonial
+        </button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+        {(siteConfig.testimonials || []).map((t, idx) => (
+          <div key={idx} className="glass-panel" style={{ padding: 20, borderRadius: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 700, color: 'var(--color-burgundy)', fontSize: '0.9rem' }}>Review #{idx + 1}</span>
+              <button onClick={() => removeTestimonial(idx)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-error)' }}><Trash2 size={15} /></button>
+            </div>
+            <FileUploadField label="Customer / Unboxing Photo" currentUrl={t.customerPhoto} onUploaded={(url) => { const u = [...siteConfig.testimonials]; u[idx].customerPhoto = url; setSiteConfig({ ...siteConfig, testimonials: u }); }} />
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Author Name</label>
+              <input type="text" className="form-input" value={t.author} onChange={(e) => { const u = [...siteConfig.testimonials]; u[idx].author = e.target.value; setSiteConfig({ ...siteConfig, testimonials: u }); }} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Perfume Variant Tag</label>
+              <input type="text" className="form-input" value={t.perfumeVariant} onChange={(e) => { const u = [...siteConfig.testimonials]; u[idx].perfumeVariant = e.target.value; setSiteConfig({ ...siteConfig, testimonials: u }); }} placeholder="Azadi Bundle — Any 3" />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Quote</label>
+              <textarea rows={2} className="form-input" value={t.quote} onChange={(e) => { const u = [...siteConfig.testimonials]; u[idx].quote = e.target.value; setSiteConfig({ ...siteConfig, testimonials: u }); }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <button onClick={saveTestimonials} disabled={saving} className="btn btn-primary" style={{ padding: '12px 30px', alignSelf: 'flex-start' }}>
+        {saving ? 'Saving...' : 'Save All Testimonials'}
+      </button>
+    </div>
+  );
+};
+
+// ─── 7. Settings Tab (Categories + Bank) ─────────────────────────────────────
+const SettingsTab = ({ token }) => {
+  const { toast } = useToast();
+  const [siteConfig, setSiteConfig] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/site-config').then((r) => r.json()).then(setSiteConfig).catch(() => {});
+  }, []);
+
+  const saveBankDetails = async () => {
+    setSaving(true);
+    try {
+      await apiFetch(`${API}/site-config/bank-details`, token, { method: 'PUT', body: JSON.stringify(siteConfig.bankDetails) });
+      toast.success('Bank details saved.');
+    } catch (e) { toast.error(e.message); } finally { setSaving(false); }
+  };
+
+  const saveCategories = async () => {
+    setSaving(true);
+    try {
+      await apiFetch(`${API}/site-config/navbar-categories`, token, { method: 'PUT', body: JSON.stringify({ navbarCategories: siteConfig.navbarCategories }) });
+      toast.success('Navbar category visibility updated.');
+    } catch (e) { toast.error(e.message); } finally { setSaving(false); }
+  };
+
+  if (!siteConfig) return <SkeletonBlock height={300} borderRadius={16} />;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 36 }}>
+      {/* Navbar Categories Visibility */}
+      <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
+        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.15rem', color: 'var(--color-burgundy)', marginBottom: 8 }}>Navbar Categories Visibility</h4>
+        <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 20 }}>Check which category buttons to display on the top navigation bar.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14 }}>
+          {(siteConfig.navbarCategories || []).map((cat, idx) => (
+            <label key={cat.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 10, background: cat.isVisible ? 'rgba(89,53,48,0.06)' : 'white', border: cat.isVisible ? '1.5px solid var(--color-burgundy)' : '1px solid rgba(0,0,0,0.1)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={cat.isVisible}
+                onChange={(e) => {
+                  const updated = [...siteConfig.navbarCategories];
+                  updated[idx].isVisible = e.target.checked;
+                  setSiteConfig({ ...siteConfig, navbarCategories: updated });
+                }}
+                style={{ width: 16, height: 16, accentColor: 'var(--color-burgundy)' }}
+              />
+              <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{cat.name}</span>
+            </label>
+          ))}
         </div>
+        <button onClick={saveCategories} disabled={saving} className="btn btn-primary" style={{ marginTop: 20, padding: '10px 24px' }}>Save Category Visibility</button>
+      </div>
+
+      {/* Bank Account Settings */}
+      <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
+        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.15rem', color: 'var(--color-burgundy)', marginBottom: 8 }}>Bank Transfer Settings (Manual Payment)</h4>
+        <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 20 }}>Configures bank name, account number, and the automatic discount displayed at checkout.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          {[['Bank Name', 'bankName'], ['Account Title', 'accountTitle'], ['Account Number', 'accountNumber'], ['IBAN', 'iban'], ['WhatsApp Support Phone', 'supportPhone']].map(([label, key]) => (
+            <div key={key} className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">{label}</label>
+              <input type="text" className="form-input" value={siteConfig.bankDetails?.[key] || ''} onChange={(e) => setSiteConfig({ ...siteConfig, bankDetails: { ...siteConfig.bankDetails, [key]: e.target.value } })} />
+            </div>
+          ))}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Bank Transfer Discount (%)</label>
+            <input type="number" className="form-input" value={siteConfig.bankDetails?.discountPercent ?? 5} onChange={(e) => setSiteConfig({ ...siteConfig, bankDetails: { ...siteConfig.bankDetails, discountPercent: Number(e.target.value) } })} />
+          </div>
+        </div>
+        <button onClick={saveBankDetails} disabled={saving} className="btn btn-primary" style={{ marginTop: 20, padding: '10px 24px' }}>Save Bank Details</button>
       </div>
     </div>
   );
 };
 
-// ─── Main AdminDashboard component ─────────────────────────────────────────
+// ─── Main Admin Dashboard Component ──────────────────────────────────────────
 const TABS = [
-  { key: 'analytics', label: 'Analytics', icon: BarChart2 },
-  { key: 'orders',    label: 'Orders',    icon: ShoppingBag },
-  { key: 'customers', label: 'Customers', icon: Users },
-  { key: 'products',  label: 'Products',  icon: Package },
-  { key: 'reviews',   label: 'Reviews',   icon: Star },
-  { key: 'coupons',   label: 'Coupons',   icon: Tag },
-  { key: 'settings',  label: 'Settings',  icon: Settings },
+  { key: 'orders', label: 'Orders & Approvals', icon: ShoppingBag },
+  { key: 'sales', label: 'Sales & Campaigns', icon: Flame },
+  { key: 'products', label: 'Products & Hover', icon: Package },
+  { key: 'banners', label: 'Homepage Banners', icon: Image },
+  { key: 'studioVideos', label: 'Studio Videos', icon: Video },
+  { key: 'testimonials', label: 'Testimonials', icon: Star },
+  { key: 'settings', label: 'Categories & Bank', icon: Settings },
 ];
 
 const AdminDashboard = () => {
   const { user, loading } = useContext(AuthContext);
   const navigate = useNavigate();
-  const [tab, setTab] = useState('analytics');
+  const [tab, setTab] = useState('orders');
 
   useEffect(() => {
-    // Wait until AuthContext has finished restoring the session from
-    // localStorage before deciding whether to kick the user out. Without
-    // this check, `user` is briefly null on the very first render (even
-    // for a logged-in admin), which was causing an immediate redirect to
-    // "/" on page refresh or when navigating to /admin directly.
     if (loading) return;
     if (!user || user.role !== 'admin') navigate('/');
   }, [user, loading, navigate]);
 
-  // Still restoring session from localStorage — show a lightweight loading
-  // state instead of bouncing the user out prematurely.
   if (loading) {
     return (
       <div className="container" style={{ paddingTop: 80, minHeight: '80vh', textAlign: 'center' }}>
-        <div style={{ width: 40, height: 40, border: '3px solid var(--color-rose-medium)', borderTopColor: 'var(--color-burgundy)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 20px auto' }} />
-        <p style={{ fontStyle: 'italic', fontFamily: 'var(--font-serif)' }}>Loading dashboard...</p>
-        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        <p style={{ fontStyle: 'italic', fontFamily: 'var(--font-serif)' }}>Loading luxury control panel...</p>
       </div>
     );
   }
@@ -729,378 +1366,40 @@ const AdminDashboard = () => {
   if (!user || user.role !== 'admin') return null;
 
   return (
-    <div className="container animate-fade" style={{ paddingTop: 50, minHeight: '80vh', paddingBottom: 60 }}>
-      <div style={{ marginBottom: 40 }}>
-        <span style={{ color: 'var(--color-gold)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 600 }}>
-          Control Center
-        </span>
-        <h2 className="serif-title-medium" style={{ color: 'var(--color-burgundy)', marginTop: 8 }}>Admin Dashboard</h2>
+    <div className="container animate-fade" style={{ paddingTop: 40, minHeight: '85vh', paddingBottom: 80 }}>
+      <div style={{ marginBottom: 36 }}>
+        <span style={{ color: 'var(--color-gold)', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700 }}>Anti Luxury Control Center</span>
+        <h2 className="serif-title-medium" style={{ color: 'var(--color-burgundy)', marginTop: 6 }}>Admin Dashboard</h2>
       </div>
 
-      {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 4, background: 'var(--bg-secondary)', padding: 6, borderRadius: 14, marginBottom: 32, flexWrap: 'wrap' }}>
+      {/* Tab Navigation */}
+      <div style={{ display: 'flex', gap: 6, background: 'var(--bg-secondary)', padding: 6, borderRadius: 14, marginBottom: 32, flexWrap: 'wrap' }}>
         {TABS.map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => setTab(key)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: '0.86rem', fontWeight: 600, background: tab === key ? 'white' : 'transparent', color: tab === key ? 'var(--color-burgundy)' : 'var(--color-text-muted)', boxShadow: tab === key ? '0 2px 8px rgba(44,34,30,0.08)' : 'none', transition: 'all 0.2s ease' }}>
-            <Icon size={15} />{label}
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
+              fontSize: '0.85rem', fontWeight: 700,
+              background: tab === key ? 'white' : 'transparent',
+              color: tab === key ? 'var(--color-burgundy)' : 'var(--color-text-muted)',
+              boxShadow: tab === key ? '0 2px 8px rgba(44,34,30,0.08)' : 'none',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <Icon size={15} /> {label}
           </button>
         ))}
       </div>
 
-      {/* Tab content — each tab manages its own data independently */}
-      {tab === 'analytics' && <AnalyticsTab token={user.token} />}
-      {tab === 'orders'    && <OrdersTab    token={user.token} />}
-      {tab === 'customers' && <CustomersTab token={user.token} />}
-      {tab === 'products'  && <ProductsTab  token={user.token} />}
-      {tab === 'reviews'   && <ReviewsTab   token={user.token} />}
-      {tab === 'coupons'   && <CouponsTab   token={user.token} />}
-      {tab === 'settings'  && <SiteSettingsTab token={user.token} />}
-    </div>
-  );
-};
-
-// ─── Site Settings tab ──────────────────────────────────────────────────
-const SiteSettingsTab = ({ token }) => {
-  const { toast } = useToast();
-
-  // ── Announcement state ──────────────────────────────────────────────
-  const [ann, setAnn]         = useState({ enabled: false, text: '', bgColor: '#593530', textColor: '#FFFFFF', link: '', linkLabel: 'Shop Now' });
-  const [annSaving, setAnnSaving] = useState(false);
-
-  // ── Hero state ──────────────────────────────────────────────────────
-  const [hero, setHero]       = useState({ badge: 'Luxury Collection', headline: 'Elegance', subheadline: 'in Bloom', description: 'Experience timeless luxury perfumes crafted with passion and elegance, designed to leave a lasting impression.', ctaLabel: 'Explore Collection', videoUrl: '', videoPlatform: 'youtube', heroProductName: '' });
-  const [heroSaving, setHeroSaving] = useState(false);
-  const [products, setProducts] = useState([]);
-
-  // ── Testimonials state ────────────────────────────────────────────────
-  const [testimonials, setTestimonials] = useState([]);
-  const [testSaving, setTestSaving]     = useState(false);
-  const [editingIdx, setEditingIdx]     = useState(null);
-  const [editForm, setEditForm]         = useState({ quote: '', author: '', role: 'Verified Customer', rating: 5 });
-  const [showAddForm, setShowAddForm]   = useState(false);
-  const [addForm, setAddForm]           = useState({ quote: '', author: '', role: 'Verified Customer', rating: 5 });
-
-  // Fetch everything on mount
-  useEffect(() => {
-    fetch('http://localhost:5000/api/site-config')
-      .then(r => r.json())
-      .then(data => {
-        if (data?.announcement) setAnn(data.announcement);
-        if (data?.hero)         setHero(h => ({ ...h, ...data.hero }));
-        if (data?.testimonials?.length) setTestimonials(data.testimonials);
-      })
-      .catch(() => toast.error('Failed to load site config.'));
-
-    // Also fetch products list for the hero product selector
-    fetch('http://localhost:5000/api/products')
-      .then(r => r.json())
-      .then(data => setProducts(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, []); // eslint-disable-line
-
-  // ── Save helpers ────────────────────────────────────────────────────
-  const saveAnnouncement = async () => {
-    setAnnSaving(true);
-    try { await apiFetch(`${API}/site-config/announcement`, token, { method: 'PUT', body: JSON.stringify(ann) }); toast.success('Announcement saved.'); }
-    catch (e) { toast.error(e.message); }
-    finally { setAnnSaving(false); }
-  };
-
-  const saveHero = async () => {
-    setHeroSaving(true);
-    try { await apiFetch(`${API}/site-config/hero`, token, { method: 'PUT', body: JSON.stringify(hero) }); toast.success('Hero content saved.'); }
-    catch (e) { toast.error(e.message); }
-    finally { setHeroSaving(false); }
-  };
-
-  const saveTestimonials = async (list) => {
-    setTestSaving(true);
-    try { await apiFetch(`${API}/site-config/testimonials`, token, { method: 'PUT', body: JSON.stringify({ testimonials: list }) }); toast.success('Testimonials saved.'); }
-    catch (e) { toast.error(e.message); }
-    finally { setTestSaving(false); }
-  };
-
-  const startEdit = (idx)  => { setEditingIdx(idx); setEditForm({ ...testimonials[idx] }); };
-  const saveEdit  = async () => {
-    const updated = testimonials.map((t, i) => i === editingIdx ? { ...editForm } : t);
-    setTestimonials(updated); setEditingIdx(null); await saveTestimonials(updated);
-  };
-  const deleteTestimonial = async (idx) => {
-    const updated = testimonials.filter((_, i) => i !== idx);
-    setTestimonials(updated); await saveTestimonials(updated);
-  };
-  const addTestimonial = async () => {
-    if (!addForm.quote.trim() || !addForm.author.trim()) { toast.warning('Quote and author are required.'); return; }
-    const updated = [...testimonials, { ...addForm }];
-    setTestimonials(updated); setShowAddForm(false);
-    setAddForm({ quote: '', author: '', role: 'Verified Customer', rating: 5 });
-    await saveTestimonials(updated);
-  };
-
-  // Shared input style
-  const fi = { marginBottom: 0 };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 36 }}>
-
-      {/* ── Hero Content ──────────────────────────────────────────────── */}
-      <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
-        <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-burgundy)' }}>Hero Section</h3>
-          <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Controls the homepage headline, description, CTA button and story video.</p>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div className="form-group" style={fi}>
-            <label className="form-label">Badge Text</label>
-            <input type="text" className="form-input" value={hero.badge} onChange={e => setHero(h => ({ ...h, badge: e.target.value }))} placeholder="Luxury Collection" />
-          </div>
-          <div className="form-group" style={fi}>
-            <label className="form-label">CTA Button Label</label>
-            <input type="text" className="form-input" value={hero.ctaLabel} onChange={e => setHero(h => ({ ...h, ctaLabel: e.target.value }))} placeholder="Explore Collection" />
-          </div>
-          <div className="form-group" style={fi}>
-            <label className="form-label">Headline (line 1)</label>
-            <input type="text" className="form-input" value={hero.headline} onChange={e => setHero(h => ({ ...h, headline: e.target.value }))} placeholder="Elegance" />
-          </div>
-          <div className="form-group" style={fi}>
-            <label className="form-label">Sub-headline (line 2, italic)</label>
-            <input type="text" className="form-input" value={hero.subheadline} onChange={e => setHero(h => ({ ...h, subheadline: e.target.value }))} placeholder="in Bloom" />
-          </div>
-          <div className="form-group" style={{ ...fi, gridColumn: '1/-1' }}>
-            <label className="form-label">Hero Description</label>
-            <textarea rows={3} className="form-input" value={hero.description} onChange={e => setHero(h => ({ ...h, description: e.target.value }))} style={{ resize: 'vertical' }} />
-          </div>
-
-          {/* Hero product selector — visual card grid */}
-          <div className="form-group" style={{ ...fi, gridColumn: '1/-1' }}>
-            <label className="form-label">Hero Product (shown in right panel)</label>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12, marginTop: 10 }}>
-
-              {/* "Auto" option */}
-              <div
-                onClick={() => setHero(h => ({ ...h, heroProductName: '' }))}
-                style={{
-                  borderRadius: 12,
-                  border: hero.heroProductName === '' ? '2px solid var(--color-burgundy)' : '2px solid rgba(106,91,83,0.15)',
-                  cursor: 'pointer',
-                  overflow: 'hidden',
-                  background: hero.heroProductName === '' ? 'rgba(89,53,48,0.06)' : 'white',
-                  transition: 'border-color 0.2s, background 0.2s',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '18px 10px',
-                  gap: 8,
-                  textAlign: 'center',
-                }}
-              >
-                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>✨</div>
-                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: hero.heroProductName === '' ? 'var(--color-burgundy)' : 'var(--color-text-secondary)', lineHeight: 1.3 }}>Auto</span>
-                <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', lineHeight: 1.3 }}>Floral Musk or first product</span>
-                {hero.heroProductName === '' && (
-                  <span style={{ fontSize: '0.7rem', background: 'var(--color-burgundy)', color: 'white', padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>Selected</span>
-                )}
-              </div>
-
-              {/* One card per product */}
-              {products.map(p => {
-                const selected = hero.heroProductName === p.name;
-                return (
-                  <div
-                    key={p._id}
-                    onClick={() => setHero(h => ({ ...h, heroProductName: p.name }))}
-                    style={{
-                      borderRadius: 12,
-                      border: selected ? '2px solid var(--color-burgundy)' : '2px solid rgba(106,91,83,0.15)',
-                      cursor: 'pointer',
-                      overflow: 'hidden',
-                      background: selected ? 'rgba(89,53,48,0.04)' : 'white',
-                      transition: 'border-color 0.2s, box-shadow 0.2s',
-                      boxShadow: selected ? '0 0 0 3px rgba(89,53,48,0.12)' : 'none',
-                      display: 'flex',
-                      flexDirection: 'column',
-                    }}
-                  >
-                    {/* Product image */}
-                    <div style={{ width: '100%', aspectRatio: '1', overflow: 'hidden', background: 'var(--bg-secondary)', position: 'relative' }}>
-                      <img
-                        src={p.imageUrl}
-                        alt={p.name}
-                        loading="lazy"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s ease' }}
-                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-                        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                      />
-                      {selected && (
-                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(89,53,48,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ background: 'var(--color-burgundy)', color: 'white', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 700 }}>✓</span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Name + category */}
-                    <div style={{ padding: '8px 10px' }}>
-                      <p style={{ fontSize: '0.78rem', fontWeight: 600, color: selected ? 'var(--color-burgundy)' : 'var(--color-text-primary)', lineHeight: 1.3, marginBottom: 2 }}>{p.name}</p>
-                      <p style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>{p.category}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Story video */}
-          <div className="form-group" style={fi}>
-            <label className="form-label">Story Video Platform</label>
-            <select className="form-input" value={hero.videoPlatform} onChange={e => setHero(h => ({ ...h, videoPlatform: e.target.value }))}>
-              <option value="youtube">YouTube (paste watch URL)</option>
-              <option value="vimeo">Vimeo (paste vimeo.com URL)</option>
-              <option value="direct">Direct URL (mp4 / webm link)</option>
-            </select>
-          </div>
-          <div className="form-group" style={fi}>
-            <label className="form-label">Story Video URL</label>
-            <input type="text" className="form-input" value={hero.videoUrl} onChange={e => setHero(h => ({ ...h, videoUrl: e.target.value }))}
-              placeholder={hero.videoPlatform === 'youtube' ? 'https://youtube.com/watch?v=...' : hero.videoPlatform === 'vimeo' ? 'https://vimeo.com/...' : 'https://example.com/video.mp4'} />
-          </div>
-
-          {/* Live video preview label */}
-          {hero.videoUrl && (
-            <div style={{ gridColumn: '1/-1', padding: '10px 14px', borderRadius: 8, background: 'rgba(110,138,115,0.1)', border: '1px solid var(--color-success)', fontSize: '0.82rem', color: 'var(--color-success)', fontWeight: 500 }}>
-              ✓ Video URL is set — "Watch Story" button will open a modal player.
-            </div>
-          )}
-        </div>
-
-        <button onClick={saveHero} disabled={heroSaving} className="btn btn-primary" style={{ marginTop: 24, padding: '12px 32px' }}>
-          {heroSaving ? 'Saving...' : 'Save Hero Content'}
-        </button>
-      </div>
-
-      {/* ── Announcement Bar ──────────────────────────────────────────── */}
-      <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-burgundy)' }}>Announcement Bar</h3>
-            <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Dismissable banner at the top of every page.</p>
-          </div>
-          <button onClick={() => setAnn(a => ({ ...a, enabled: !a.enabled }))}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', borderRadius: 30, border: 'none', cursor: 'pointer', background: ann.enabled ? 'rgba(110,138,115,0.15)' : 'rgba(176,92,92,0.1)', color: ann.enabled ? 'var(--color-success)' : 'var(--color-error)', fontWeight: 700, fontSize: '0.85rem' }}>
-            <span style={{ width: 36, height: 20, borderRadius: 10, background: ann.enabled ? 'var(--color-success)' : 'rgba(176,92,92,0.4)', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-              <span style={{ position: 'absolute', top: 3, left: ann.enabled ? 18 : 3, width: 14, height: 14, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-            </span>
-            {ann.enabled ? 'Enabled' : 'Disabled'}
-          </button>
-        </div>
-
-        {ann.text && (
-          <div style={{ marginBottom: 20, padding: '10px 20px', borderRadius: 8, background: ann.bgColor, color: ann.textColor, fontSize: '0.84rem', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-            {ann.text}{ann.link && <span style={{ fontWeight: 700, borderBottom: `1px solid ${ann.textColor}` }}> {ann.linkLabel} →</span>}
-          </div>
-        )}
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div className="form-group" style={{ ...fi, gridColumn: '1/-1' }}>
-            <label className="form-label">Announcement Text</label>
-            <input type="text" className="form-input" value={ann.text} onChange={e => setAnn(a => ({ ...a, text: e.target.value }))} placeholder="🌸 Free shipping on orders over $99!" />
-          </div>
-          <div className="form-group" style={fi}>
-            <label className="form-label">Link URL (optional)</label>
-            <input type="text" className="form-input" value={ann.link} onChange={e => setAnn(a => ({ ...a, link: e.target.value }))} placeholder="/shop or https://..." />
-          </div>
-          <div className="form-group" style={fi}>
-            <label className="form-label">Link Label</label>
-            <input type="text" className="form-input" value={ann.linkLabel} onChange={e => setAnn(a => ({ ...a, linkLabel: e.target.value }))} placeholder="Shop Now" />
-          </div>
-          <div className="form-group" style={fi}>
-            <label className="form-label">Background Colour</label>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <input type="color" value={ann.bgColor} onChange={e => setAnn(a => ({ ...a, bgColor: e.target.value }))} style={{ width: 44, height: 44, borderRadius: 8, border: '1px solid rgba(106,91,83,0.2)', cursor: 'pointer', padding: 2 }} />
-              <input type="text" className="form-input" value={ann.bgColor} onChange={e => setAnn(a => ({ ...a, bgColor: e.target.value }))} style={{ flex: 1 }} />
-            </div>
-          </div>
-          <div className="form-group" style={fi}>
-            <label className="form-label">Text Colour</label>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <input type="color" value={ann.textColor} onChange={e => setAnn(a => ({ ...a, textColor: e.target.value }))} style={{ width: 44, height: 44, borderRadius: 8, border: '1px solid rgba(106,91,83,0.2)', cursor: 'pointer', padding: 2 }} />
-              <input type="text" className="form-input" value={ann.textColor} onChange={e => setAnn(a => ({ ...a, textColor: e.target.value }))} style={{ flex: 1 }} />
-            </div>
-          </div>
-        </div>
-
-        <button onClick={saveAnnouncement} disabled={annSaving} className="btn btn-primary" style={{ marginTop: 24, padding: '12px 32px' }}>
-          {annSaving ? 'Saving...' : 'Save Announcement'}
-        </button>
-      </div>
-
-      {/* ── Testimonials ──────────────────────────────────────────────── */}
-      <div className="glass-panel" style={{ padding: 28, borderRadius: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-burgundy)' }}>Customer Testimonials</h3>
-            <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Rotate automatically every 7 seconds on the homepage.</p>
-          </div>
-          <button className="btn btn-primary" onClick={() => setShowAddForm(!showAddForm)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px' }}>
-            <Plus size={15} /> Add Testimonial
-          </button>
-        </div>
-
-        {showAddForm && (
-          <div style={{ background: 'var(--bg-secondary)', padding: 20, borderRadius: 12, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <h4 style={{ fontFamily: 'var(--font-serif)', color: 'var(--color-burgundy)', fontSize: '1rem' }}>New Testimonial</h4>
-            <div className="form-group" style={fi}>
-              <label className="form-label">Quote</label>
-              <textarea rows={3} className="form-input" value={addForm.quote} onChange={e => setAddForm(f => ({ ...f, quote: e.target.value }))} placeholder="What the customer said..." style={{ resize: 'vertical' }} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 80px', gap: 12 }}>
-              <div className="form-group" style={fi}><label className="form-label">Author</label><input type="text" className="form-input" value={addForm.author} onChange={e => setAddForm(f => ({ ...f, author: e.target.value }))} placeholder="Jane D." /></div>
-              <div className="form-group" style={fi}><label className="form-label">Role</label><input type="text" className="form-input" value={addForm.role} onChange={e => setAddForm(f => ({ ...f, role: e.target.value }))} placeholder="Verified Customer" /></div>
-              <div className="form-group" style={fi}><label className="form-label">Stars</label><select className="form-input" value={addForm.rating} onChange={e => setAddForm(f => ({ ...f, rating: Number(e.target.value) }))}>{[5,4,3,2,1].map(n => <option key={n} value={n}>{n} ★</option>)}</select></div>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-primary" onClick={addTestimonial} disabled={testSaving} style={{ padding: '10px 22px' }}>{testSaving ? 'Saving...' : 'Add'}</button>
-              <button className="btn btn-secondary" onClick={() => setShowAddForm(false)} style={{ padding: '10px 18px' }}>Cancel</button>
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {testimonials.length === 0 && <p style={{ color: 'var(--color-text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>No testimonials yet.</p>}
-          {testimonials.map((t, idx) => (
-            <div key={idx} style={{ background: 'var(--bg-secondary)', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(106,91,83,0.08)' }}>
-              {editingIdx === idx ? (
-                <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div className="form-group" style={fi}><label className="form-label">Quote</label><textarea rows={3} className="form-input" value={editForm.quote} onChange={e => setEditForm(f => ({ ...f, quote: e.target.value }))} style={{ resize: 'vertical' }} /></div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 80px', gap: 12 }}>
-                    <div className="form-group" style={fi}><label className="form-label">Author</label><input type="text" className="form-input" value={editForm.author} onChange={e => setEditForm(f => ({ ...f, author: e.target.value }))} /></div>
-                    <div className="form-group" style={fi}><label className="form-label">Role</label><input type="text" className="form-input" value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))} /></div>
-                    <div className="form-group" style={fi}><label className="form-label">Stars</label><select className="form-input" value={editForm.rating} onChange={e => setEditForm(f => ({ ...f, rating: Number(e.target.value) }))}>{[5,4,3,2,1].map(n => <option key={n} value={n}>{n} ★</option>)}</select></div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button className="btn btn-primary" onClick={saveEdit} disabled={testSaving} style={{ padding: '9px 22px' }}>{testSaving ? 'Saving...' : 'Save'}</button>
-                    <button className="btn btn-secondary" onClick={() => setEditingIdx(null)} style={{ padding: '9px 18px' }}>Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ padding: '16px 20px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                  <div style={{ flexGrow: 1 }}>
-                    <div style={{ display: 'flex', gap: 2, marginBottom: 8 }}>
-                      {[...Array(5)].map((_, i) => <Star key={i} size={13} fill={i < t.rating ? 'var(--color-gold)' : 'none'} stroke={i < t.rating ? 'none' : 'var(--color-text-muted)'} />)}
-                    </div>
-                    <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--color-burgundy)', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: 8 }}>"{t.quote}"</p>
-                    <p style={{ fontSize: '0.82rem', fontWeight: 600 }}>{t.author} <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>— {t.role}</span></p>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                    <button onClick={() => startEdit(idx)} style={{ border: 'none', background: 'rgba(89,53,48,0.08)', borderRadius: 8, cursor: 'pointer', padding: '7px 9px' }}><Edit2 size={14} color="var(--color-burgundy)" /></button>
-                    <button onClick={() => deleteTestimonial(idx)} style={{ border: 'none', background: 'rgba(176,92,92,0.1)', borderRadius: 8, cursor: 'pointer', padding: '7px 9px' }}><Trash2 size={14} color="var(--color-error)" /></button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      {tab === 'orders'       && <OrdersTab token={user.token} />}
+      {tab === 'sales'        && <SalesTab token={user.token} />}
+      {tab === 'products'     && <ProductsTab token={user.token} />}
+      {tab === 'banners'      && <BannersTab token={user.token} />}
+      {tab === 'studioVideos' && <StudioVideosTab token={user.token} />}
+      {tab === 'testimonials' && <TestimonialsTab token={user.token} />}
+      {tab === 'settings'     && <SettingsTab token={user.token} />}
     </div>
   );
 };

@@ -144,7 +144,7 @@ const Wishlist = () => {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                      ${product.price.toFixed(2)}
+                      Rs. {Math.round(product.price).toLocaleString()}
                     </span>
                     <button
                       className="btn btn-primary"

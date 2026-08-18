@@ -99,7 +99,7 @@ const Success = () => {
                 <span style={{ color: 'var(--color-text-primary)' }}>
                   {item.name} <strong style={{ color: 'var(--color-text-muted)' }}>({item.size} x{item.quantity})</strong>
                 </span>
-                <span style={{ fontWeight: '500' }}>${(item.price * item.quantity).toFixed(2)}</span>
+                <span style={{ fontWeight: '500' }}>Rs. {Math.round(item.price * item.quantity).toLocaleString()}</span>
               </div>
             ))}
           </div>
@@ -107,7 +107,7 @@ const Success = () => {
           <div style={{ borderTop: '1px solid rgba(106, 91, 83, 0.08)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-muted)' }}>
               <span>Total Amount</span>
-              <strong style={{ fontSize: '1.1rem', color: 'var(--color-burgundy)' }}>${order.totalAmount.toFixed(2)}</strong>
+              <strong style={{ fontSize: '1.1rem', color: 'var(--color-burgundy)' }}>Rs. {Math.round(order.totalAmount).toLocaleString()}</strong>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
               <span><strong>Deliver to:</strong> {order.shippingAddress.address}, {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}</span>

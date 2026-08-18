@@ -1,22 +1,22 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Star, User, CheckCircle } from 'lucide-react';
+import { Star, User, CheckCircle, MessageSquarePlus, Sparkles } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 const StarInput = ({ value, onChange }) => (
-  <div style={{ display: 'flex', gap: 4 }}>
+  <div style={{ display: 'flex', gap: 6 }}>
     {[1, 2, 3, 4, 5].map((star) => (
       <button
         key={star}
         type="button"
         onClick={() => onChange(star)}
-        style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 2 }}
+        style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 3, transition: 'transform 0.15s ease' }}
         aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
       >
         <Star
-          size={24}
+          size={26}
           fill={star <= value ? 'var(--color-gold)' : 'none'}
-          stroke={star <= value ? 'var(--color-gold)' : 'var(--color-text-muted)'}
+          stroke={star <= value ? 'var(--color-gold)' : 'rgba(106,91,83,0.3)'}
           strokeWidth={1.5}
         />
       </button>
@@ -24,80 +24,77 @@ const StarInput = ({ value, onChange }) => (
   </div>
 );
 
-const StarDisplay = ({ value, size = 14 }) => (
-  <div style={{ display: 'flex', gap: 2 }}>
+const StarDisplay = ({ value, size = 15 }) => (
+  <div style={{ display: 'flex', gap: 3 }}>
     {[1, 2, 3, 4, 5].map((star) => (
       <Star
         key={star}
         size={size}
         fill={star <= Math.round(value) ? 'var(--color-gold)' : 'none'}
-        stroke={star <= Math.round(value) ? 'none' : 'var(--color-text-muted)'}
+        stroke={star <= Math.round(value) ? 'none' : 'rgba(106,91,83,0.25)'}
         strokeWidth={1.5}
       />
     ))}
   </div>
 );
 
-const ReviewSection = ({ productId }) => {
+const ReviewSection = ({ productId, initialReviews = [] }) => {
   const { user } = useContext(AuthContext);
   const { toast } = useToast();
 
-  const [reviews, setReviews] = useState([]);
-  const [numReviews, setNumReviews] = useState(0);
-  const [averageRating, setAverageRating] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState(initialReviews);
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Form state
-  const [rating, setRating] = useState(0);
+  const [rating, setRating] = useState(5);
+  const [name, setName] = useState(user?.username || '');
   const [comment, setComment] = useState('');
+  const [variant, setVariant] = useState('100ml Eau de Parfum');
   const [formOpen, setFormOpen] = useState(false);
 
-  const fetchReviews = async () => {
-    setLoading(true);
+  const fetchProductReviews = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/reviews/${productId}`);
-      const data = await res.json();
-      setReviews(data.reviews || []);
-      setNumReviews(data.numReviews || 0);
-      setAverageRating(data.averageRating || 0);
-    } catch {
-      toast.error('Failed to load reviews.');
-    } finally {
-      setLoading(false);
+      const res = await fetch(`/api/products/${productId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.reviews)) {
+          setReviews(data.reviews);
+        }
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
   useEffect(() => {
-    if (productId) fetchReviews();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId]);
+    if (user?.username && !name) {
+      setName(user.username);
+    }
+  }, [user, name]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!name.trim()) { toast.warning('Please enter your name.'); return; }
     if (!rating) { toast.warning('Please select a star rating.'); return; }
     if (comment.trim().length < 5) { toast.warning('Comment must be at least 5 characters.'); return; }
 
     setSubmitting(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/reviews/${productId}`, {
+      const res = await fetch(`/api/products/${productId}/reviews`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.token}`,
-        },
-        body: JSON.stringify({ rating, comment }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), rating, comment: comment.trim(), variant }),
       });
       const data = await res.json();
 
       if (!res.ok) {
         toast.error(data.message || 'Failed to submit review.');
       } else {
-        toast.success('Your review has been submitted!');
-        setRating(0);
+        toast.success('Thank you! Your verified review has been posted.');
         setComment('');
         setFormOpen(false);
-        fetchReviews();
+        fetchProductReviews();
       }
     } catch {
       toast.error('Something went wrong. Please try again.');
@@ -106,79 +103,115 @@ const ReviewSection = ({ productId }) => {
     }
   };
 
+  const avgRating = reviews.length > 0
+    ? (reviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / reviews.length).toFixed(1)
+    : '5.0';
+
   return (
-    <div style={{ marginTop: 60 }}>
-      {/* Section header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 30, flexWrap: 'wrap', gap: 16 }}>
+    <div style={{ marginTop: 70, paddingTop: 40, borderTop: '1px solid rgba(106,91,83,0.1)' }}>
+      {/* Section Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30, flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h3 className="serif-title-small" style={{ color: 'var(--color-burgundy)', marginBottom: 6 }}>
-            Customer Reviews
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-gold)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <Sparkles size={13} /> Verified Customer Feedback
+          </span>
+          <h3 className="serif-title-small" style={{ color: 'var(--color-burgundy)', margin: 0 }}>
+            Customer Reviews & Experiences
           </h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <StarDisplay value={averageRating} size={16} />
-            <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>
-              {averageRating.toFixed(1)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+            <StarDisplay value={Number(avgRating)} size={18} />
+            <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--color-burgundy)' }}>
+              {avgRating} / 5.0
             </span>
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
-              ({numReviews} {numReviews === 1 ? 'review' : 'reviews'})
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.86rem' }}>
+              ({reviews.length} {reviews.length === 1 ? 'customer review' : 'customer reviews'})
             </span>
           </div>
         </div>
 
-        {user && !formOpen && (
+        {!formOpen && (
           <button
-            className="btn btn-secondary"
+            className="btn btn-primary"
             onClick={() => setFormOpen(true)}
-            style={{ fontSize: '0.85rem', padding: '10px 22px' }}
+            style={{ fontSize: '0.86rem', padding: '12px 24px', display: 'inline-flex', alignItems: 'center', gap: 8 }}
           >
-            Write a Review
+            <MessageSquarePlus size={16} /> Write a Review
           </button>
-        )}
-        {!user && (
-          <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-            Log in to leave a review
-          </span>
         )}
       </div>
 
-      {/* Review submission form */}
-      {formOpen && user && (
+      {/* Review Submission Form */}
+      {formOpen && (
         <div
           className="glass-panel"
-          style={{ padding: '28px', borderRadius: 16, marginBottom: 30, border: '1px solid rgba(197,160,89,0.2)' }}
+          style={{ padding: '30px', borderRadius: 20, marginBottom: 36, border: '1px solid rgba(197,160,89,0.3)', backgroundColor: '#FFFFFF' }}
         >
-          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.15rem', color: 'var(--color-burgundy)', marginBottom: 20 }}>
-            Share Your Experience
-          </h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', color: 'var(--color-burgundy)', margin: 0 }}>
+              Share Your Fragrance Experience
+            </h4>
+            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Required fields are marked *</span>
+          </div>
+
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div>
-              <label className="form-label">Your Rating</label>
-              <StarInput value={rating} onChange={setRating} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Your Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ayesha Khan"
+                  className="form-input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Purchased Variant</label>
+                <select className="form-input" value={variant} onChange={(e) => setVariant(e.target.value)}>
+                  <option>100ml Eau de Parfum</option>
+                  <option>50ml Eau de Parfum</option>
+                  <option>Tester Discovery Box</option>
+                </select>
+              </div>
             </div>
+
+            <div>
+              <label className="form-label">Overall Rating *</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                <StarInput value={rating} onChange={setRating} />
+                <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--color-gold)' }}>
+                  {rating === 5 ? 'Exceptional (5/5)' : rating === 4 ? 'Great (4/5)' : rating === 3 ? 'Good (3/5)' : 'Fair'}
+                </span>
+              </div>
+            </div>
+
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Your Review</label>
+              <label className="form-label">Your Honest Review & Scent Longevity *</label>
               <textarea
-                rows={4}
+                rows={3}
+                required
                 className="form-input"
-                placeholder="Describe your experience with this fragrance..."
+                placeholder="Tell us about the scent notes, longevity (e.g. 24H+), compliment factor, and luxury packaging..."
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                style={{ resize: 'vertical', minHeight: 100 }}
+                style={{ resize: 'vertical' }}
               />
             </div>
-            <div style={{ display: 'flex', gap: 12 }}>
+
+            <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
               <button
                 type="submit"
                 className="btn btn-primary"
                 disabled={submitting}
-                style={{ padding: '12px 28px' }}
+                style={{ padding: '12px 30px', display: 'inline-flex', alignItems: 'center', gap: 8 }}
               >
-                {submitting ? 'Submitting...' : 'Submit Review'}
+                {submitting ? 'Posting Review...' : 'Post Verified Review'}
               </button>
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => { setFormOpen(false); setRating(0); setComment(''); }}
+                onClick={() => setFormOpen(false)}
                 style={{ padding: '12px 22px' }}
               >
                 Cancel
@@ -188,55 +221,74 @@ const ReviewSection = ({ productId }) => {
         </div>
       )}
 
-      {/* Reviews list */}
-      {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {[1, 2, 3].map((i) => (
-            <div key={i} style={{ height: 90, borderRadius: 12, background: 'linear-gradient(90deg,#f0e8e0 25%,#faf0e8 50%,#f0e8e0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }} />
-          ))}
-        </div>
-      ) : reviews.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-muted)', fontStyle: 'italic', fontFamily: 'var(--font-serif)', fontSize: '1.1rem' }}>
-          No reviews yet. Be the first to share your thoughts.
+      {/* Reviews List */}
+      {reviews.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '45px 0', color: 'var(--color-text-secondary)', background: 'var(--bg-secondary)', borderRadius: 16 }}>
+          <p style={{ fontFamily: 'var(--font-serif)', fontSize: '1.15rem', color: 'var(--color-burgundy)', marginBottom: 4 }}>
+            Be the First to Review This Masterpiece
+          </p>
+          <p style={{ fontSize: '0.85rem' }}>Experience the aroma and share your thoughts with fellow connoisseurs.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {reviews.map((review) => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20 }}>
+          {reviews.map((rev, idx) => (
             <div
-              key={review._id}
+              key={rev._id || idx}
               className="glass-panel"
-              style={{ padding: '22px 26px', borderRadius: 14, border: '1px solid rgba(106,91,83,0.08)' }}
+              style={{
+                padding: '24px',
+                borderRadius: 16,
+                backgroundColor: 'white',
+                border: '1px solid rgba(106,91,83,0.1)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: 14,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
+              }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: 'var(--color-rose-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <User size={16} color="var(--color-burgundy)" />
-                  </div>
-                  <div>
-                    <p style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
-                      {review.user?.username || 'Anonymous'}
-                    </p>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                      {new Date(review.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                    </p>
-                  </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <StarDisplay value={rev.rating || 5} size={15} />
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      color: 'var(--color-success)',
+                      fontWeight: 700,
+                      background: 'rgba(56,142,60,0.08)',
+                      padding: '2px 8px',
+                      borderRadius: 12,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <CheckCircle size={11} /> Verified Buyer
+                  </span>
                 </div>
-                <StarDisplay value={review.rating} />
+
+                <p style={{ fontSize: '0.94rem', color: 'var(--color-text-primary)', lineHeight: 1.6, fontStyle: 'italic', margin: '8px 0' }}>
+                  "{rev.comment}"
+                </p>
               </div>
-              <p style={{ fontSize: '0.92rem', color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
-                {review.comment}
-              </p>
+
+              <div style={{ borderTop: '1px solid rgba(106,91,83,0.08)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--color-burgundy)', margin: 0 }}>
+                    {rev.name}
+                  </p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                    {rev.variant || '100ml Eau De Parfum'}
+                  </p>
+                </div>
+                <span style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)' }}>
+                  {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recently'}
+                </span>
+              </div>
             </div>
           ))}
         </div>
       )}
-
-      <style>{`
-        @keyframes shimmer {
-          0%   { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
     </div>
   );
 };

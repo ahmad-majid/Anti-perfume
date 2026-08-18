@@ -5,57 +5,87 @@ const siteConfigSchema = new mongoose.Schema({
   key: { type: String, default: 'main', unique: true },
 
   announcement: {
-    enabled: { type: Boolean, default: false },
-    text:    { type: String, default: '🌸 Free shipping on orders over $99 — Use code WELCOME10 for 10% off your first order!' },
+    enabled: { type: Boolean, default: true },
+    text:    { type: String, default: '🌸 Free shipping on all orders — Use code WELCOME10 for 10% off your first order!' },
     bgColor: { type: String, default: '#593530' },
     textColor: { type: String, default: '#FFFFFF' },
-    link:    { type: String, default: '' },
+    link:    { type: String, default: '/shop' },
     linkLabel: { type: String, default: 'Shop Now' },
   },
 
-  testimonials: {
-    type: [
-      {
-        quote:    { type: String, required: true },
-        author:   { type: String, required: true },
-        role:     { type: String, default: 'Verified Customer' },
-        rating:   { type: Number, default: 5, min: 1, max: 5 },
-      },
-    ],
-    default: [
-      {
-        quote:  'Anti perfumes are truly exceptional. The scent lasts all day long and I always receive compliments! Floral Musk is my signature fragrance.',
-        author: 'Sophia M.',
-        role:   'Verified Customer',
-        rating: 5,
-      },
-      {
-        quote:  'Velvet Oud is absolutely divine — rich, mysterious, and long-lasting. I get stopped and asked what I\'m wearing every single time.',
-        author: 'James K.',
-        role:   'Verified Customer',
-        rating: 5,
-      },
-      {
-        quote:  'The packaging alone feels like a gift. Amber Royale is warm, luxurious and perfect for evenings. Will absolutely reorder.',
-        author: 'Layla R.',
-        role:   'Premium Member',
-        rating: 5,
-      },
-    ],
+  // 1. Image Banner 1 (Shown after Value Strip)
+  banner1: {
+    imageUrl: { type: String, default: '/images/floral_musk.jpg' },
+    bgImageUrl: { type: String, default: '/images/floral_musk.jpg' },
+    ctaLink:  { type: String, default: '/shop' },
+    active:   { type: Boolean, default: true },
   },
 
-  // Hero section — editable from admin dashboard
-  hero: {
-    badge:       { type: String, default: 'Luxury Collection' },
-    headline:    { type: String, default: 'Elegance' },
-    subheadline: { type: String, default: 'in Bloom' },
-    description: { type: String, default: 'Experience timeless luxury perfumes crafted with passion and elegance, designed to leave a lasting impression.' },
-    ctaLabel:    { type: String, default: 'Explore Collection' },
-    videoUrl:    { type: String, default: '' },
-    // 'youtube' | 'vimeo' | 'direct' — determines embed strategy
-    videoPlatform: { type: String, default: 'youtube', enum: ['youtube', 'vimeo', 'direct'] },
-    heroProductName: { type: String, default: '' }, // override which product shows in hero image
+  // 2. Text Promo Banner ("Scent of Elegance" - Shown before Straight from the Studio)
+  textBanner: {
+    tag:         { type: String, default: 'Signature Scent' },
+    title:       { type: String, default: 'Scent of Elegance' },
+    subtitle:    { type: String, default: 'A fragrance that stays with you long after you have gone.' },
+    description: { type: String, default: 'Crafted with the rarest florals and rich amber resins. Rediscover your personal signature aroma today.' },
+    ctaLabel:    { type: String, default: 'Shop Collection Now' },
+    ctaLink:     { type: String, default: '/shop' },
+    active:      { type: Boolean, default: true },
   },
+
+  // 3. Image Banner 2 (Shown after Satisfied Customers)
+  banner2: {
+    imageUrl: { type: String, default: '/images/amber_royale.jpg' },
+    bgImageUrl: { type: String, default: '/images/amber_royale.jpg' },
+    ctaLink:  { type: String, default: '/shop' },
+    active:   { type: Boolean, default: true },
+  },
+
+  // 4. Straight from the Studio Videos Carousel
+  studioVideos: [
+    {
+      title:         { type: String, default: 'Customer Unboxing' },
+      tag:           { type: String, default: '13,000+ CUSTOMERS!' },
+      thumbnailUrl:  { type: String, default: '/images/floral_musk.jpg' },
+      videoUrl:      { type: String, default: '' },
+      videoPlatform: { type: String, default: 'direct', enum: ['youtube', 'vimeo', 'direct'] },
+      active:        { type: Boolean, default: true },
+      order:         { type: Number, default: 0 },
+    },
+  ],
+
+  // 5. Satisfied Customers Testimonials with Photos & Perfume Tags
+  testimonials: [
+    {
+      customerPhoto:  { type: String, default: '/images/rose_divine.jpg' },
+      quote:          { type: String, required: true },
+      author:         { type: String, required: true },
+      role:           { type: String, default: 'Verified Customer' },
+      rating:         { type: Number, default: 5, min: 1, max: 5 },
+      perfumeVariant: { type: String, default: 'Spectra - Best Male' },
+      isVerified:     { type: Boolean, default: true },
+    },
+  ],
+
+  // 6. Bank Transfer Details (For Manual Payment & 5% Discount)
+  bankDetails: {
+    bankName:        { type: String, default: 'Meezan Bank' },
+    accountTitle:    { type: String, default: 'Anti Luxury Fragrances' },
+    accountNumber:   { type: String, default: '02880110596741' },
+    iban:            { type: String, default: 'PK64MEZN0002880110596741' },
+    instructions:    { type: String, default: 'Transfer the amount to our official bank account and send the screenshot/receipt.' },
+    supportPhone:    { type: String, default: '0314-1774008' },
+    discountPercent: { type: Number, default: 5 },
+    active:          { type: Boolean, default: true },
+  },
+
+  // 7. Navbar Category Display Settings (Admin can show/hide categories)
+  navbarCategories: [
+    {
+      name:      { type: String, required: true },
+      isVisible: { type: Boolean, default: true },
+      order:     { type: Number, default: 0 },
+    },
+  ],
 }, { timestamps: true });
 
 module.exports = mongoose.model('SiteConfig', siteConfigSchema);

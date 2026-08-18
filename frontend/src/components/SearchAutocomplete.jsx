@@ -181,13 +181,11 @@ const SearchAutocomplete = () => {
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
                 </div>
-                <div style={{ flexGrow: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--color-burgundy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {p.name}
-                  </p>
-                  <p style={{ fontSize: '0.76rem', color: 'var(--color-text-muted)' }}>
-                    {p.category} · ${p.price?.toFixed(2)}
-                  </p>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>{p.name}</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                    {p.category} — Rs. {Math.round(p.price).toLocaleString()}
+                  </span>
                 </div>
               </div>
             ))

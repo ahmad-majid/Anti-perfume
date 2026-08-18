@@ -12,6 +12,8 @@ import Footer from './components/Footer';
 import CartDrawer from './components/CartDrawer';
 import PageTransition from './components/PageTransition';
 import AnnouncementBar from './components/AnnouncementBar';
+import ScrollToTop from './components/ScrollToTop';
+import FloatingWhatsApp from './components/FloatingWhatsApp';
 
 // Pages
 import Home from './pages/Home';
@@ -24,6 +26,9 @@ import Checkout from './pages/Checkout';
 import Success from './pages/Success';
 import Wishlist from './pages/Wishlist';
 import AdminDashboard from './pages/AdminDashboard';
+import SalePage from './pages/SalePage';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import Terms from './pages/Terms';
 
 // AnimatePresence requires access to location, so we split into an inner component
 function AnimatedRoutes() {
@@ -35,6 +40,7 @@ function AnimatedRoutes() {
         <Routes location={location}>
           <Route path="/"            element={<Home />} />
           <Route path="/shop"        element={<Shop />} />
+          <Route path="/sale/:slug"  element={<SalePage />} />
           <Route path="/product/:id" element={<ProductDetail />} />
           <Route path="/login"       element={<Login />} />
           <Route path="/register"    element={<Register />} />
@@ -43,6 +49,8 @@ function AnimatedRoutes() {
           <Route path="/checkout"    element={<Checkout />} />
           <Route path="/success"     element={<Success />} />
           <Route path="/admin"       element={<AdminDashboard />} />
+          <Route path="/privacy"     element={<PrivacyPolicy />} />
+          <Route path="/terms"       element={<Terms />} />
         </Routes>
       </PageTransition>
     </AnimatePresence>
@@ -58,6 +66,7 @@ function App() {
         <CartProvider>
           <WishlistProvider>
             <BrowserRouter>
+              <ScrollToTop />
               <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
                 <AnnouncementBar />
                 <Navbar onCartOpen={() => setIsCartOpen(true)} />
@@ -65,6 +74,7 @@ function App() {
                   <AnimatedRoutes />
                 </main>
                 <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+                <FloatingWhatsApp />
                 <Footer />
               </div>
             </BrowserRouter>

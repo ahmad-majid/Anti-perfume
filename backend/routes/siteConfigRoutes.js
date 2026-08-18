@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const SiteConfig = require('../models/SiteConfig');
-const { protect, admin } = require('../middleware/authMiddleware');
+const { protect, adminOnly } = require('../middleware/authMiddleware');
 
 // Helper — always return the single config doc, creating it with defaults if it doesn't exist yet
 const getConfig = async () => {
@@ -12,7 +12,7 @@ const getConfig = async () => {
   return config;
 };
 
-// @desc    Get site config (public — needed for announcement bar + testimonials on frontend)
+// @desc    Get complete site config (public)
 // @route   GET /api/site-config
 // @access  Public
 router.get('/', async (req, res) => {
@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
 // @desc    Update announcement settings
 // @route   PUT /api/site-config/announcement
 // @access  Private/Admin
-router.put('/announcement', protect, admin, async (req, res) => {
+router.put('/announcement', protect, adminOnly, async (req, res) => {
   try {
     const config = await getConfig();
     const { enabled, text, bgColor, textColor, link, linkLabel } = req.body;
@@ -46,22 +46,23 @@ router.put('/announcement', protect, admin, async (req, res) => {
   }
 });
 
-// @desc    Update hero section content
-// @route   PUT /api/site-config/hero
+// @desc    Update Banners (Banner 1 Image + Text Banner + Banner 2 Image)
+// @route   PUT /api/site-config/banners
 // @access  Private/Admin
-router.put('/hero', protect, admin, async (req, res) => {
+router.put('/banners', protect, adminOnly, async (req, res) => {
   try {
     const config = await getConfig();
-    const { badge, headline, subheadline, description, ctaLabel, videoUrl, videoPlatform, heroProductName } = req.body;
+    const { banner1, banner2, textBanner } = req.body;
 
-    if (badge !== undefined)           config.hero.badge           = badge;
-    if (headline !== undefined)        config.hero.headline        = headline;
-    if (subheadline !== undefined)     config.hero.subheadline     = subheadline;
-    if (description !== undefined)     config.hero.description     = description;
-    if (ctaLabel !== undefined)        config.hero.ctaLabel        = ctaLabel;
-    if (videoUrl !== undefined)        config.hero.videoUrl        = videoUrl;
-    if (videoPlatform !== undefined)   config.hero.videoPlatform   = videoPlatform;
-    if (heroProductName !== undefined) config.hero.heroProductName = heroProductName;
+    if (banner1) {
+      config.banner1 = { ...(config.banner1 ? config.banner1.toObject() : {}), ...banner1 };
+    }
+    if (banner2) {
+      config.banner2 = { ...(config.banner2 ? config.banner2.toObject() : {}), ...banner2 };
+    }
+    if (textBanner) {
+      config.textBanner = { ...(config.textBanner ? config.textBanner.toObject() : {}), ...textBanner };
+    }
 
     await config.save();
     res.json(config);
@@ -70,10 +71,28 @@ router.put('/hero', protect, admin, async (req, res) => {
   }
 });
 
-// @desc    Replace entire testimonials array
+// @desc    Update Straight from the Studio Videos array
+// @route   PUT /api/site-config/studio-videos
+// @access  Private/Admin
+router.put('/studio-videos', protect, adminOnly, async (req, res) => {
+  try {
+    const { studioVideos } = req.body;
+    if (!Array.isArray(studioVideos)) {
+      return res.status(400).json({ message: 'studioVideos must be an array' });
+    }
+    const config = await getConfig();
+    config.studioVideos = studioVideos;
+    await config.save();
+    res.json(config);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Update Testimonials array with customer photos and variant tags
 // @route   PUT /api/site-config/testimonials
 // @access  Private/Admin
-router.put('/testimonials', protect, admin, async (req, res) => {
+router.put('/testimonials', protect, adminOnly, async (req, res) => {
   try {
     const { testimonials } = req.body;
     if (!Array.isArray(testimonials)) {
@@ -81,6 +100,48 @@ router.put('/testimonials', protect, admin, async (req, res) => {
     }
     const config = await getConfig();
     config.testimonials = testimonials;
+    await config.save();
+    res.json(config);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Update Bank Transfer details
+// @route   PUT /api/site-config/bank-details
+// @access  Private/Admin
+router.put('/bank-details', protect, adminOnly, async (req, res) => {
+  try {
+    const config = await getConfig();
+    const { bankName, accountTitle, accountNumber, iban, instructions, supportPhone, discountPercent, active } = req.body;
+
+    if (bankName !== undefined)        config.bankDetails.bankName        = bankName;
+    if (accountTitle !== undefined)    config.bankDetails.accountTitle    = accountTitle;
+    if (accountNumber !== undefined)   config.bankDetails.accountNumber   = accountNumber;
+    if (iban !== undefined)            config.bankDetails.iban            = iban;
+    if (instructions !== undefined)    config.bankDetails.instructions    = instructions;
+    if (supportPhone !== undefined)    config.bankDetails.supportPhone    = supportPhone;
+    if (discountPercent !== undefined) config.bankDetails.discountPercent = Number(discountPercent);
+    if (active !== undefined)          config.bankDetails.active          = active;
+
+    await config.save();
+    res.json(config);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Update Navbar Categories visibility
+// @route   PUT /api/site-config/navbar-categories
+// @access  Private/Admin
+router.put('/navbar-categories', protect, adminOnly, async (req, res) => {
+  try {
+    const { navbarCategories } = req.body;
+    if (!Array.isArray(navbarCategories)) {
+      return res.status(400).json({ message: 'navbarCategories must be an array' });
+    }
+    const config = await getConfig();
+    config.navbarCategories = navbarCategories;
     await config.save();
     res.json(config);
   } catch (error) {

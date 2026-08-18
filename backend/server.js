@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
+const path = require('path');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 // Import routes
@@ -14,6 +15,8 @@ const wishlistRoutes = require('./routes/wishlistRoutes');
 const couponRoutes = require('./routes/couponRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const siteConfigRoutes = require('./routes/siteConfigRoutes');
+const saleRoutes = require('./routes/saleRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 dotenv.config();
 
@@ -22,6 +25,11 @@ const app = express();
 // Middlewares
 app.use(cors());
 app.use(express.json());
+
+// Serve static uploads
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Apply rate limiting
 app.use('/api', generalLimiter);
 
 // Routes mapping
@@ -34,6 +42,8 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/site-config', siteConfigRoutes);
+app.use('/api/sales', saleRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Root route
 app.get('/', (req, res) => {
